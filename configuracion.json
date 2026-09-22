@@ -1,0 +1,25 @@
+{
+  "empresa": "Mi restaurante",
+  "inicio_rotacion": "2026-01-05",
+  "turnos": {
+    "M": "Mañana · 09:00 a 17:00",
+    "T": "Tarde · 17:00 a 01:00 del día siguiente"
+  },
+  "areas": {
+    "Cocina": {
+      "empleados": ["Ana", "Luis", "Carla", "Pedro"],
+      "cobertura": {"M": 1, "T": 1},
+      "desfase": 0
+    },
+    "Barra": {
+      "empleados": ["Sofía", "Diego", "Valentina", "Tomás"],
+      "cobertura": {"M": 1, "T": 1},
+      "desfase": 1
+    },
+    "Garzones": {
+      "empleados": ["Camila", "Matías", "Javiera", "Nicolás", "Daniela", "Felipe"],
+      "cobertura": {"M": 2, "T": 2},
+      "desfase": 2
+    }
+  }
+}
