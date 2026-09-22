@@ -7,7 +7,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
-from horarios import BASE, NS, exportar, generar
+from horarios import BASE, NS, exportar, generar, numero_dia
 
 
 class HorariosTest(unittest.TestCase):
@@ -16,6 +16,8 @@ class HorariosTest(unittest.TestCase):
         self.inicio = date(2026, 9, 28)
 
     def test_cobertura_y_equidad(self):
+        for area in self.config["areas"].values():
+            area.pop("dias_libres", None)
         _, resultado = generar(self.config, self.inicio, 12)
         for nombre, empleados in resultado.items():
             for dia in range(84):
@@ -38,6 +40,7 @@ class HorariosTest(unittest.TestCase):
             generar(self.config, self.inicio, 1)
 
     def test_excel_y_proteccion_archivo(self):
+        self.config["areas"]["Cocina"]["dias_libres"].pop("Ana")
         self.config["areas"]["Cocina"]["empleados"][0] = '=Ana & "Luis" <3'
         fechas, horarios = generar(self.config, self.inicio, 4)
         with tempfile.TemporaryDirectory() as carpeta:
@@ -54,6 +57,36 @@ class HorariosTest(unittest.TestCase):
                 self.assertEqual(len(hoja.findall(f".//{{{NS}}}f")), 0)
             with self.assertRaises(FileExistsError):
                 exportar(self.config, fechas, horarios, destino)
+
+    def test_libres_fijos_y_cobertura(self):
+        fechas, resultado = generar(self.config, date(2026, 9, 30), 8)
+        for nombre, empleados in resultado.items():
+            area = self.config["areas"][nombre]
+            for columna, dia in enumerate(fechas):
+                cuentas = Counter(turnos[columna] for turnos in empleados.values())
+                for turno, cantidad in area["cobertura"].items():
+                    self.assertEqual(cuentas[turno], cantidad)
+                for empleado, libre in area["dias_libres"].items():
+                    if dia.weekday() == numero_dia(libre):
+                        self.assertEqual(empleados[empleado][columna], "LIBRE")
+
+    def test_libres_imposibles(self):
+        self.config["areas"]["Cocina"]["dias_libres"] = {
+            "Ana": "lunes", "Luis": "lunes", "Carla": "lunes"
+        }
+        with self.assertRaisesRegex(ValueError, "Cocina: el lunes hay 1.*2 puestos"):
+            generar(self.config, self.inicio, 1)
+
+    def test_libres_invalidos(self):
+        for libres in ({"Otra persona": "lunes"}, {"Ana": "luness"}, {"Ana": 1}, []):
+            with self.subTest(libres=libres):
+                self.config["areas"]["Cocina"]["dias_libres"] = libres
+                with self.assertRaises(ValueError):
+                    generar(self.config, self.inicio, 1)
+
+    def test_dias_con_mayusculas_y_sin_tildes(self):
+        self.assertEqual(numero_dia(" MIÉRCOLES "), 2)
+        self.assertEqual(numero_dia("sabado"), 5)
 
 
 if __name__ == "__main__":

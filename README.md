@@ -27,8 +27,36 @@ Si el archivo ya existe, el programa pide usar otro nombre para proteger cambios
 - `empleados`: lista ordenada de personas de cada área.
 - `cobertura`: cantidad de personas necesarias **cada día** por turno y área.
 - `desfase`: adelanta el ciclo del área el número de días indicado; normalmente puedes dejarlo en cero.
+- `dias_libres`: día libre fijo semanal de cada persona (opcional).
 
-En el ejemplo, Cocina y Barra tienen cuatro personas y dos puestos diarios:
+## Elegir un día libre por persona
+
+En cada área de `configuracion.json`, edita `dias_libres`, usando exactamente
+los nombres de la lista `empleados`. Por ejemplo, en Cocina:
+
+```json
+"dias_libres": {
+  "Ana": "lunes",
+  "Luis": "martes",
+  "Carla": "miércoles",
+  "Pedro": "jueves"
+}
+```
+
+Ana tendrá libre todos los lunes, Luis todos los martes, y así sucesivamente
+durante todas las semanas exportadas. Puedes elegir de lunes a domingo;
+se aceptan mayúsculas y nombres con o sin tilde. Para dejar a alguien sin día
+fijo, elimina su entrada. Para desactivar esta opción en un área, usa `{}`.
+
+Los descansos se muestran como `LIBRE` en el Excel. Puede haber días libres
+adicionales según la cobertura. El programa reasigna los turnos que coincidan
+con un descanso fijo a personas disponibles, manteniendo la cobertura diaria.
+Si no es posible cubrirla, indica el área y día del conflicto y no genera el
+archivo. Con descansos fijos, la cantidad de turnos por persona puede variar.
+
+## Ciclo base
+
+Sin días libres fijos, Cocina y Barra tienen cuatro personas y dos puestos diarios:
 cada persona repite el ciclo mañana, tarde, libre, libre, empezando en un punto
 distinto. Garzones tiene seis personas y cuatro puestos diarios: mañana,
 mañana, tarde, tarde, libre, libre. En un ciclo completo todos pasan por la
@@ -40,7 +68,7 @@ personas, el programa informa el error; si hay tantos puestos como personas,
 no habrá días libres. Cambiar el orden de empleados, la cobertura o los turnos
 cambia el ciclo, incluso para fechas ya exportadas.
 
-Esta versión no contempla vacaciones, ausencias, disponibilidad individual,
+Esta versión no contempla vacaciones, ausencias, otras restricciones de disponibilidad,
 límites de horas ni descansos mínimos entre turnos. Revisa esos requisitos
 antes de usar el horario definitivo. Los nombres y horas incluidos son ejemplos.
 

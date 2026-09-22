@@ -8,16 +8,19 @@
   "areas": {
     "Cocina": {
       "empleados": ["Ana", "Luis", "Carla", "Pedro"],
+      "dias_libres": {"Ana": "lunes", "Luis": "martes", "Carla": "miércoles", "Pedro": "jueves"},
       "cobertura": {"M": 1, "T": 1},
       "desfase": 0
     },
     "Barra": {
       "empleados": ["Sofía", "Diego", "Valentina", "Tomás"],
+      "dias_libres": {"Sofía": "lunes", "Diego": "martes", "Valentina": "miércoles", "Tomás": "jueves"},
       "cobertura": {"M": 1, "T": 1},
       "desfase": 1
     },
     "Garzones": {
       "empleados": ["Camila", "Matías", "Javiera", "Nicolás", "Daniela", "Felipe"],
+      "dias_libres": {"Camila": "lunes", "Matías": "martes", "Javiera": "miércoles", "Nicolás": "jueves", "Daniela": "viernes", "Felipe": "sábado"},
       "cobertura": {"M": 2, "T": 2},
       "desfase": 2
     }

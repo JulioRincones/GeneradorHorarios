@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import unicodedata
 from datetime import date, timedelta
 from pathlib import Path
 from xml.etree.ElementTree import Element, SubElement, tostring
@@ -10,6 +11,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 BASE = Path(__file__).resolve().parent
 AREAS = ("Cocina", "Barra", "Garzones")
 DIAS = ("Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom")
+DIAS_COMPLETOS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 
 
@@ -17,6 +19,16 @@ def entero(valor, nombre, minimo=0):
     if type(valor) is not int or valor < minimo:
         raise ValueError(f"{nombre} debe ser un entero mayor o igual a {minimo}.")
     return valor
+
+
+def numero_dia(valor):
+    if isinstance(valor, str):
+        normalizado = unicodedata.normalize("NFKD", valor.strip().casefold())
+        normalizado = "".join(c for c in normalizado if not unicodedata.combining(c))
+        dias = ("lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo")
+        if normalizado in dias:
+            return dias.index(normalizado)
+    raise ValueError("El día libre debe ser lunes, martes, miércoles, jueves, viernes, sábado o domingo.")
 
 
 def validar(config):
@@ -56,6 +68,24 @@ def validar(config):
         if puestos == 0 or puestos > len(empleados):
             raise ValueError(f"{nombre}: la cobertura debe ser entre 1 y {len(empleados)} personas por día.")
         entero(area.get("desfase", 0), f"Desfase de {nombre}")
+        libres = area.get("dias_libres", {})
+        if not isinstance(libres, dict):
+            raise ValueError(f"{nombre}: dias_libres debe asociar nombres con días de la semana.")
+        dias_libres = []
+        for empleado, dia in libres.items():
+            if empleado not in empleados:
+                raise ValueError(f"{nombre}: empleado desconocido en dias_libres: {empleado}.")
+            try:
+                dias_libres.append(numero_dia(dia))
+            except ValueError as error:
+                raise ValueError(f"{nombre}, {empleado}: {error}") from None
+        for dia in range(7):
+            disponibles = len(empleados) - dias_libres.count(dia)
+            if disponibles < puestos:
+                raise ValueError(
+                    f"{nombre}: el {DIAS_COMPLETOS[dia]} hay {disponibles} personas disponibles "
+                    f"para {puestos} puestos. Cambia los días libres o la cobertura."
+                )
     try:
         date.fromisoformat(config["inicio_rotacion"])
     except (KeyError, ValueError, TypeError):
@@ -81,6 +111,23 @@ def generar(config, inicio, semanas):
                        for dia in fechas]
             for i, empleado in enumerate(empleados)
         }
+        libres = {e: numero_dia(d) for e, d in area.get("dias_libres", {}).items()}
+        for columna, dia in enumerate(fechas):
+            ausentes = {e for e, d in libres.items() if d == dia.weekday()}
+            vacantes = []
+            for empleado in empleados:
+                if empleado in ausentes:
+                    turno = resultado[nombre][empleado][columna]
+                    if turno != "LIBRE":
+                        vacantes.append(turno)
+                    resultado[nombre][empleado][columna] = "LIBRE"
+            # La prioridad depende de la fecha, no del inicio de la exportación.
+            offset = ((dia - origen).days + area.get("desfase", 0)) % len(empleados)
+            orden = empleados[offset:] + empleados[:offset]
+            reemplazos = [e for e in orden if e not in ausentes
+                          and resultado[nombre][e][columna] == "LIBRE"]
+            for turno, empleado in zip(vacantes, reemplazos):
+                resultado[nombre][empleado][columna] = turno
     return fechas, resultado
 
 
