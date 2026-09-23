@@ -1,6 +1,7 @@
 """Generador de horarios rotativos y Excel, sin dependencias externas."""
 
 import argparse
+import calendar
 import json
 import unicodedata
 from datetime import date, timedelta
@@ -12,6 +13,7 @@ BASE = Path(__file__).resolve().parent
 AREAS = ("Cocina", "Barra", "Garzones")
 DIAS = ("Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom")
 DIAS_COMPLETOS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+MESES = ("Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre")
 NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 
 
@@ -68,6 +70,23 @@ def validar(config):
         if puestos == 0 or puestos > len(empleados):
             raise ValueError(f"{nombre}: la cobertura debe ser entre 1 y {len(empleados)} personas por día.")
         entero(area.get("desfase", 0), f"Desfase de {nombre}")
+        seleccion = area.get("turnos_semanales", {})
+        if not isinstance(seleccion, dict):
+            raise ValueError(f"{nombre}: turnos_semanales debe ser un objeto con fechas de lunes.")
+        for lunes, asignaciones in seleccion.items():
+            try:
+                fecha = date.fromisoformat(lunes)
+                if fecha.weekday() != 0 or fecha.isoformat() != lunes:
+                    raise ValueError
+            except (ValueError, TypeError):
+                raise ValueError(f"{nombre}: {lunes} debe ser un lunes en formato AAAA-MM-DD.") from None
+            if not isinstance(asignaciones, dict):
+                raise ValueError(f"{nombre}, {lunes}: indica un turno por persona.")
+            for persona, turno in asignaciones.items():
+                if persona not in empleados:
+                    raise ValueError(f"{nombre}: empleado desconocido en turnos_semanales: {persona}.")
+                if not isinstance(turno, str) or turno not in turnos:
+                    raise ValueError(f"{nombre}, {persona}: turno semanal desconocido: {turno}.")
         libres = area.get("dias_libres", {})
         if not isinstance(libres, dict):
             raise ValueError(f"{nombre}: dias_libres debe asociar nombres con días de la semana.")
@@ -92,13 +111,15 @@ def validar(config):
         raise ValueError("inicio_rotacion debe ser una fecha AAAA-MM-DD.") from None
 
 
-def generar(config, inicio, semanas):
+def generar(config, inicio, semanas, *, fin=None):
     validar(config)
     entero(semanas, "Semanas", 1)
     if semanas > 52:
         raise ValueError("Genera como máximo 52 semanas por archivo.")
     origen = date.fromisoformat(config["inicio_rotacion"])
     fechas = [inicio + timedelta(days=i) for i in range(semanas * 7)]
+    if fin is not None:
+        fechas = [dia for dia in fechas if dia <= fin]
     resultado = {}
     for nombre in AREAS:
         area = config["areas"][nombre]
@@ -114,6 +135,29 @@ def generar(config, inicio, semanas):
         libres = {e: numero_dia(d) for e, d in area.get("dias_libres", {}).items()}
         for columna, dia in enumerate(fechas):
             ausentes = {e for e, d in libres.items() if d == dia.weekday()}
+            lunes = (dia - timedelta(days=dia.weekday())).isoformat()
+            seleccion = area.get("turnos_semanales", {}).get(lunes, {})
+            if seleccion:
+                pendientes = dict(area["cobertura"])
+                for empleado in empleados:
+                    turno = seleccion.get(empleado) if empleado not in ausentes else None
+                    resultado[nombre][empleado][columna] = turno or "LIBRE"
+                    if turno:
+                        pendientes[turno] = pendientes.get(turno, 0) - 1
+                        if pendientes[turno] < 0:
+                            raise ValueError(
+                                f"{nombre}, {dia:%d/%m/%Y}: las selecciones semanales del turno "
+                                f"{turno} superan la cobertura. Ajusta la selección o la cobertura."
+                            )
+                disponibles = [e for e in empleados if e not in seleccion and e not in ausentes]
+                offset = ((dia - origen).days + area.get("desfase", 0)) % max(1, len(disponibles))
+                disponibles = disponibles[offset:] + disponibles[:offset]
+                vacantes = [t for t in config["turnos"] for _ in range(pendientes.get(t, 0))]
+                if len(vacantes) > len(disponibles):
+                    raise ValueError(f"{nombre}, {dia:%d/%m/%Y}: no se puede cubrir la selección semanal.")
+                for empleado, turno in zip(disponibles, vacantes):
+                    resultado[nombre][empleado][columna] = turno
+                continue
             vacantes = []
             for empleado in empleados:
                 if empleado in ausentes:
@@ -131,6 +175,26 @@ def generar(config, inicio, semanas):
     return fechas, resultado
 
 
+def generar_mes(config, mes):
+    inicio = mes.replace(day=1)
+    cantidad = calendar.monthrange(inicio.year, inicio.month)[1]
+    fechas, horarios = generar(config, inicio, (cantidad + 6) // 7,
+                               fin=inicio.replace(day=cantidad))
+    return fechas[:cantidad], {
+        area: {persona: turnos[:cantidad] for persona, turnos in empleados.items()}
+        for area, empleados in horarios.items()
+    }
+
+
+def leer_mes(valor):
+    try:
+        if len(valor) != 7:
+            raise ValueError
+        return date.fromisoformat(valor + "-01")
+    except ValueError:
+        raise argparse.ArgumentTypeError("Indica el mes como AAAA-MM, por ejemplo 2026-09.") from None
+
+
 def xml(elemento):
     return tostring(elemento, encoding="utf-8", xml_declaration=True)
 
@@ -141,8 +205,7 @@ def hoja(config, nombre, fechas, horarios):
     SubElement(vistas, "sheetView", workbookViewId="0", showGridLines="0")
     SubElement(root, "sheetFormatPr", defaultRowHeight="24")
     columnas = SubElement(root, "cols")
-    SubElement(columnas, "col", min="1", max="1", width="28", customWidth="1")
-    SubElement(columnas, "col", min="2", max="8", width="15", customWidth="1")
+    SubElement(columnas, "col", min="1", max="7", width="19", customWidth="1")
     datos = SubElement(root, "sheetData")
     fusiones, saltos = [], []
     fila = 0
@@ -156,29 +219,43 @@ def hoja(config, nombre, fechas, horarios):
                                s=str(estilos[i] if estilos else 0))
             SubElement(SubElement(celda, "is"), "t").text = str(valor)
 
-    for offset in range(0, len(fechas), 7):
-        semana = fechas[offset:offset+7]
-        agregar([f"{config['empresa']} · {nombre}"], [1], 30)
-        fusiones.append(f"A{fila}:H{fila}")
-        agregar([f"Del {semana[0]:%d/%m/%Y} al {semana[-1]:%d/%m/%Y}"], [0])
-        fusiones.append(f"A{fila}:H{fila}")
-        agregar(["Persona"] + [f"{DIAS[d.weekday()]} {d:%d/%m}" for d in semana], [2]*8, 28)
-        for empleado, turnos in horarios.items():
-            seleccion = turnos[offset:offset+7]
-            agregar([empleado] + seleccion, [0] + [3 if t == "LIBRE" else 4 for t in seleccion])
-        for codigo, descripcion in config["turnos"].items():
-            agregar([f"{codigo}: {descripcion}"], alto=28)
-            fusiones.append(f"A{fila}:H{fila}")
-        agregar(["LIBRE: día sin turno asignado"])
-        fusiones.append(f"A{fila}:H{fila}")
-        if offset + 7 < len(fechas):
-            saltos.append(fila)
+    indices = {dia: i for i, dia in enumerate(fechas)}
+    meses = sorted({(dia.year, dia.month) for dia in fechas})
+    calendario = calendar.Calendar(firstweekday=calendar.MONDAY)
+    for anio, mes in meses:
+        semanas = calendario.monthdayscalendar(anio, mes)
+        for numero, (empleado, turnos) in enumerate(horarios.items()):
+            # Dos calendarios completos por página, sin cortar trabajadores.
+            if numero % 2 == 0:
+                if fila:
+                    saltos.append(fila)
+                agregar([f"{MESES[mes-1]} {anio} · {nombre}"], [1], 32)
+                fusiones.append(f"A{fila}:G{fila}")
+                agregar([config["empresa"]], [0], 22)
+                fusiones.append(f"A{fila}:G{fila}")
+            agregar([empleado], [2], 26)
+            fusiones.append(f"A{fila}:G{fila}")
+            agregar([d.capitalize() for d in DIAS_COMPLETOS], [2]*7, 24)
+            for semana in semanas:
+                valores, formatos = [], []
+                for dia in semana:
+                    indice = indices.get(date(anio, mes, dia)) if dia else None
+                    if indice is None:
+                        valores.append("" if not dia else f"{dia}\nFuera del período")
+                        formatos.append(0)
+                    else:
+                        turno = turnos[indice]
+                        texto = "LIBRE" if turno == "LIBRE" else config["turnos"][turno]
+                        valores.append(f"{dia}\n{texto}")
+                        formatos.append(3 if turno == "LIBRE" else 4)
+                agregar(valores, formatos, 60)
+            agregar([], alto=14)
     merges = SubElement(root, "mergeCells", count=str(len(fusiones)))
     for ref in fusiones:
         SubElement(merges, "mergeCell", ref=ref)
     SubElement(root, "printOptions", horizontalCentered="1")
     SubElement(root, "pageMargins", left="0.25", right="0.25", top="0.35", bottom="0.35", header="0.15", footer="0.15")
-    SubElement(root, "pageSetup", paperSize="9", orientation="landscape", scale="85")
+    SubElement(root, "pageSetup", paperSize="9", orientation="portrait", scale="65")
     footer = SubElement(root, "headerFooter")
     SubElement(footer, "oddFooter").text = "&C&P / &N"
     if saltos:
@@ -234,7 +311,7 @@ def exportar(config, fechas, horarios, destino):
         ruta = f"worksheets/sheet{i}.xml"
         archivos[f"xl/{ruta}"], ultima = hoja(config, nombre, fechas, horarios[nombre])
         SubElement(sheets, "sheet", name=nombre, sheetId=str(i), attrib={"r:id": f"rId{i}"})
-        SubElement(nombres, "definedName", name="_xlnm.Print_Area", localSheetId=str(i-1)).text = f"'{nombre}'!$A$1:$H${ultima}"
+        SubElement(nombres, "definedName", name="_xlnm.Print_Area", localSheetId=str(i-1)).text = f"'{nombre}'!$A$1:$G${ultima}"
         SubElement(rels, "Relationship", Id=f"rId{i}", Type=f"{office}/worksheet", Target=ruta)
     SubElement(rels, "Relationship", Id="rId4", Type=f"{office}/styles", Target="styles.xml")
     archivos["xl/workbook.xml"] = xml(workbook)
@@ -255,16 +332,23 @@ def exportar(config, fechas, horarios, destino):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=BASE / "configuracion.json")
-    parser.add_argument("--inicio", type=date.fromisoformat, default=date.today(), help="Primer día, AAAA-MM-DD (por defecto: hoy)")
-    parser.add_argument("--semanas", type=int, default=4)
+    periodo = parser.add_mutually_exclusive_group()
+    periodo.add_argument("--mes", type=leer_mes, help="Mes completo AAAA-MM (por defecto: mes actual)")
+    periodo.add_argument("--inicio", type=date.fromisoformat, help="Inicio de un período personalizado AAAA-MM-DD")
+    parser.add_argument("--semanas", type=int, help="Duración del período personalizado; requiere --inicio")
     parser.add_argument("--salida", type=Path, help="Ruta del archivo .xlsx")
     args = parser.parse_args()
-    destino = args.salida or BASE / "salidas" / f"horarios_{args.inicio}_{args.semanas}semanas.xlsx"
+    if args.semanas is not None and args.inicio is None:
+        parser.error("--semanas requiere --inicio; para un mes completo usa --mes AAAA-MM.")
+    mes = args.mes or date.today().replace(day=1)
+    semanas = args.semanas if args.semanas is not None else 4
+    etiqueta = f"{args.inicio}_{semanas}semanas" if args.inicio else f"{mes:%Y-%m}"
+    destino = args.salida or BASE / "salidas" / f"horarios_{etiqueta}.xlsx"
     try:
         if destino.suffix.lower() != ".xlsx":
             raise ValueError("El archivo de salida debe terminar en .xlsx.")
         config = json.loads(args.config.read_text(encoding="utf-8-sig"))
-        fechas, horarios = generar(config, args.inicio, args.semanas)
+        fechas, horarios = generar(config, args.inicio, semanas) if args.inicio else generar_mes(config, mes)
         exportar(config, fechas, horarios, destino)
     except FileExistsError:
         parser.exit(1, f"El archivo ya existe: {destino}. Usa otro nombre con --salida.\n")

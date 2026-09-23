@@ -2,22 +2,33 @@
 
 Programa simple para Python 3.10 o superior. No necesita instalar librerías.
 Genera un Excel `.xlsx` con una hoja para Cocina, otra para Barra y otra para
-Garzones. Incluye nombres, fechas, turnos, días libres y leyenda de horarios.
+Garzones. Debajo del nombre de cada trabajador aparece su calendario mensual,
+con columnas de lunes a domingo. Cada casilla muestra el día del mes y la
+descripción del turno o `LIBRE`; los días ajenos al mes quedan vacíos.
 
 ## Uso
 
 1. Edita `configuracion.json` con los nombres y turnos de tu empresa.
-2. En Windows, haz doble clic en `generar.bat`: genera cuatro semanas desde hoy.
+2. En Windows, haz doble clic en `generar.bat`: genera el mes actual completo.
 3. Abre el archivo en la carpeta `salidas` con Excel o LibreOffice.
 4. Revisa la vista previa de impresión y selecciona todo el libro para imprimir las tres áreas.
 
-También puedes elegir fecha, duración y archivo desde una terminal:
+También puedes elegir el mes y archivo desde una terminal:
 
 ```powershell
-python horarios.py --inicio 2026-09-28 --semanas 4 --salida salidas/octubre.xlsx
+python horarios.py --mes 2026-10 --salida salidas/octubre.xlsx
 ```
 
 Si el archivo ya existe, el programa pide usar otro nombre para proteger cambios manuales.
+
+El archivo predeterminado se llama `salidas/horarios_AAAA-MM.xlsx`.
+Se incluyen todos los días del mes, incluso los anteriores a hoy. La rotación
+y los días libres fijos se conservan entre meses.
+
+Para un período personalizado sigue disponible
+`python horarios.py --inicio 2026-09-28 --semanas 4`.
+Se separa en calendarios por mes, marcando las fechas no incluidas como
+`Fuera del período`. No se puede combinar `--mes` con `--inicio` o `--semanas`.
 
 ## Configuración y rotación
 
@@ -54,6 +65,30 @@ con un descanso fijo a personas disponibles, manteniendo la cobertura diaria.
 Si no es posible cubrirla, indica el área y día del conflicto y no genera el
 archivo. Con descansos fijos, la cantidad de turnos por persona puede variar.
 
+## Elegir turnos por semana
+
+Los tres turnos disponibles son `M` (mañana, 09:00 a 17:00), `T` (tarde,
+16:00 a 00:00, medianoche al terminar el día) e `I` (intermedio, 13:00 a 19:00).
+Dentro de cada área, cambia `turnos_semanales` para elegir un turno por persona
+desde el lunes indicado hasta el domingo, incluso si la semana cruza de mes:
+
+```json
+"turnos_semanales": {
+  "2026-09-28": {"Ana": "M", "Luis": "T"},
+  "2026-10-05": {"Ana": "I", "Luis": "M"}
+}
+```
+
+La persona tendrá ese turno todos los días de esa semana salvo su día libre
+fijo. Quienes no tengan selección completan la cobertura automáticamente y
+pueden tener descansos adicionales. Usa `{}` para mantener la rotación automática.
+Las selecciones no se repiten en semanas futuras: agrega el lunes de cada semana.
+
+La cobertura sigue indicando la cantidad **exacta** de personas por turno.
+El intermedio comienza con `"I": 0`; para usarlo en Cocina, por ejemplo, cambia
+la cobertura a `{"M": 1, "T": 1, "I": 1}`. Si una selección supera la cobertura
+o impide cubrirla, el programa indica el área y la fecha, sin generar el Excel.
+
 ## Ciclo base
 
 Sin días libres fijos, Cocina y Barra tienen cuatro personas y dos puestos diarios:
@@ -72,9 +107,11 @@ Esta versión no contempla vacaciones, ausencias, otras restricciones de disponi
 límites de horas ni descansos mínimos entre turnos. Revisa esos requisitos
 antes de usar el horario definitivo. Los nombres y horas incluidos son ejemplos.
 
-El formato usa papel A4 horizontal, colores suaves y saltos de página entre
-semanas. Con equipos grandes una semana puede ocupar más de una página;
-ajusta la escala en Excel según tu impresora.
+El formato usa papel A4 vertical, colores suaves y dos trabajadores por página,
+cada uno con su mes completo, siguiendo la organización de la imagen de
+referencia. Incluye saltos de página entre pares de trabajadores y entre meses.
+Revisa la vista previa en Excel según tu impresora; descripciones de turnos
+muy largas pueden requerir aumentar el alto de las filas.
 
 ## Verificación
 
