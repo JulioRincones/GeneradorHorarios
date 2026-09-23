@@ -6,7 +6,6 @@ from datetime import date, timedelta
 from pathlib import Path
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
-
 from horarios import BASE, NS, exportar, generar, generar_mes, hoja, numero_dia
 
 
@@ -15,17 +14,19 @@ class HorariosTest(unittest.TestCase):
         self.config = json.loads((BASE / "configuracion.json").read_text(encoding="utf-8"))
         self.inicio = date(2026, 9, 28)
 
-    def test_cobertura_y_equidad(self):
-        for area in self.config["areas"].values():
-            area.pop("dias_libres", None)
-        _, resultado = generar(self.config, self.inicio, 12)
+    def test_descansos_exactos_y_domingos_alternos(self):
+        fechas, resultado = generar(self.config, date(2026, 12, 21), 8)
         for nombre, empleados in resultado.items():
-            for dia in range(84):
-                cuentas = Counter(turnos[dia] for turnos in empleados.values())
-                for turno, cantidad in self.config["areas"][nombre]["cobertura"].items():
-                    self.assertEqual(cuentas[turno], cantidad)
-            balances = [Counter(turnos) for turnos in empleados.values()]
-            self.assertTrue(all(balance == balances[0] for balance in balances))
+            area = self.config["areas"][nombre]
+            for persona, turnos in empleados.items():
+                domingos = []
+                for inicio in range(0, 56, 7):
+                    semana = turnos[inicio:inicio+7]
+                    self.assertEqual(semana[:6].count("LIBRE"), 1)
+                    self.assertEqual(semana[numero_dia(area["dias_libres"][persona])], "LIBRE")
+                    domingos.append(semana[6] == "LIBRE")
+                    self.assertEqual(semana.count("LIBRE"), 1 + domingos[-1])
+                self.assertTrue(all(a != b for a, b in zip(domingos, domingos[1:])))
 
     def test_continuidad(self):
         _, completo = generar(self.config, self.inicio, 4)
@@ -34,13 +35,31 @@ class HorariosTest(unittest.TestCase):
             for persona, turnos in empleados.items():
                 self.assertEqual(turnos, completo[area][persona][14:])
 
+    def test_grupos_dominicales_y_configuracion_obligatoria(self):
+        area = self.config["areas"]["Cocina"]
+        area["domingo_grupo"] = {"Ana": 1, "Luis": 0, "Carla": 1, "Pedro": 0}
+        _, resultado = generar(self.config, date(2026, 1, 5), 2)
+        self.assertNotEqual(resultado["Cocina"]["Ana"][6], "LIBRE")
+        self.assertEqual(resultado["Cocina"]["Ana"][13], "LIBRE")
+        area["dias_libres"]["Ana"] = "domingo"
+        with self.assertRaisesRegex(ValueError, "lunes a sábado"):
+            generar(self.config, self.inicio, 1)
+        area["dias_libres"].pop("Ana")
+        with self.assertRaisesRegex(ValueError, "lunes a sábado"):
+            generar(self.config, self.inicio, 1)
+
+    def test_cobertura_dominical_imposible(self):
+        self.config["areas"]["Cocina"]["cobertura_domingo"] = {"M": 2, "T": 1}
+        with self.assertRaisesRegex(ValueError, "domingo"):
+            generar(self.config, self.inicio, 1)
+
     def test_dotacion_insuficiente(self):
         self.config["areas"]["Cocina"]["cobertura"]["M"] = 5
         with self.assertRaisesRegex(ValueError, "Cocina"):
             generar(self.config, self.inicio, 1)
 
     def test_excel_y_proteccion_archivo(self):
-        self.config["areas"]["Cocina"]["dias_libres"].pop("Ana")
+        self.config["areas"]["Cocina"]["dias_libres"]['=Ana & "Luis" <3'] = self.config["areas"]["Cocina"]["dias_libres"].pop("Ana")
         self.config["areas"]["Cocina"]["empleados"][0] = '=Ana & "Luis" <3'
         fechas, horarios = generar(self.config, self.inicio, 4)
         with tempfile.TemporaryDirectory() as carpeta:
@@ -64,15 +83,15 @@ class HorariosTest(unittest.TestCase):
             area = self.config["areas"][nombre]
             for columna, dia in enumerate(fechas):
                 cuentas = Counter(turnos[columna] for turnos in empleados.values())
-                for turno, cantidad in area["cobertura"].items():
-                    self.assertEqual(cuentas[turno], cantidad)
+                for turno, cantidad in (area.get("cobertura_domingo", area["cobertura"]) if dia.weekday() == 6 else area["cobertura"]).items():
+                    self.assertGreaterEqual(cuentas[turno], cantidad)
                 for empleado, libre in area["dias_libres"].items():
                     if dia.weekday() == numero_dia(libre):
                         self.assertEqual(empleados[empleado][columna], "LIBRE")
 
     def test_libres_imposibles(self):
         self.config["areas"]["Cocina"]["dias_libres"] = {
-            "Ana": "lunes", "Luis": "lunes", "Carla": "lunes"
+            "Ana": "lunes", "Luis": "lunes", "Carla": "lunes", "Pedro": "jueves"
         }
         with self.assertRaisesRegex(ValueError, "Cocina: el lunes hay 1.*2 puestos"):
             generar(self.config, self.inicio, 1)
@@ -100,6 +119,7 @@ class HorariosTest(unittest.TestCase):
     def test_seleccion_semanal_tres_turnos_y_continuidad(self):
         area = self.config["areas"]["Cocina"]
         area["cobertura"]["I"] = 1
+        area["cobertura_domingo"] = {"M": 0, "T": 0, "I": 0}
         area["turnos_semanales"] = {
             "2026-09-28": {"Ana": "M", "Luis": "T", "Carla": "I"},
             "2026-10-05": {"Ana": "I", "Luis": "M", "Carla": "T"},
@@ -108,11 +128,13 @@ class HorariosTest(unittest.TestCase):
         for indice, dia in enumerate(fechas):
             lunes = (dia - timedelta(days=dia.weekday())).isoformat()
             for persona, turno in area["turnos_semanales"][lunes].items():
-                esperado = "LIBRE" if dia.weekday() == numero_dia(area["dias_libres"][persona]) else turno
+                origen = date.fromisoformat(self.config["inicio_rotacion"])
+                libre_domingo = dia.weekday() == 6 and ((dia - origen).days // 7) % 2 == area["empleados"].index(persona) % 2
+                esperado = "LIBRE" if libre_domingo or dia.weekday() == numero_dia(area["dias_libres"][persona]) else turno
                 self.assertEqual(horarios["Cocina"][persona][indice], esperado)
             cuentas = Counter(t[indice] for t in horarios["Cocina"].values())
-            for turno, cantidad in area["cobertura"].items():
-                self.assertEqual(cuentas[turno], cantidad)
+            for turno, cantidad in (area["cobertura_domingo"] if dia.weekday() == 6 else area["cobertura"]).items():
+                self.assertGreaterEqual(cuentas[turno], cantidad)
         _, octubre = generar_mes(self.config, date(2026, 10, 1))
         for persona in area["empleados"]:
             self.assertEqual(octubre["Cocina"][persona][:11], horarios["Cocina"][persona][3:])
@@ -121,8 +143,8 @@ class HorariosTest(unittest.TestCase):
         for seleccion in ({"2026-09-29": {"Ana": "M"}},
                           {"2026-09-28": {"Ana": "X"}},
                           {"2026-09-28": {"Desconocido": "M"}},
-                          {"2026-09-28": {"Ana": "I"}},
-                          {"2026-09-28": {"Ana": "M", "Luis": "M"}}):
+
+                          {"2026-09-28": {e: "M" for e in self.config["areas"]["Cocina"]["empleados"]}}):
             with self.subTest(seleccion=seleccion):
                 self.config["areas"]["Cocina"]["turnos_semanales"] = seleccion
                 with self.assertRaises(ValueError):

@@ -98,7 +98,25 @@ def validar(config):
                 dias_libres.append(numero_dia(dia))
             except ValueError as error:
                 raise ValueError(f"{nombre}, {empleado}: {error}") from None
-        for dia in range(7):
+        if set(libres) != set(empleados) or 6 in dias_libres:
+            raise ValueError(f"{nombre}: cada persona necesita un día libre fijo de lunes a sábado.")
+        grupos = area.get("domingo_grupo", {})
+        if not isinstance(grupos, dict) or any(
+            e not in empleados or type(g) is not int or g not in (0, 1) for e, g in grupos.items()
+        ):
+            raise ValueError(f"{nombre}: domingo_grupo debe asociar empleados con 0 o 1.")
+        domingo = area.get("cobertura_domingo", cobertura)
+        if not isinstance(domingo, dict) or not domingo:
+            raise ValueError(f"{nombre}: cobertura_domingo debe indicar mínimos por turno.")
+        for turno, cantidad in domingo.items():
+            if turno not in turnos:
+                raise ValueError(f"{nombre}: turno de domingo desconocido: {turno}.")
+            entero(cantidad, f"Cobertura dominical de {turno} en {nombre}")
+        for grupo in (0, 1):
+            disponibles = sum(grupos.get(e, i % 2) != grupo for i, e in enumerate(empleados))
+            if disponibles < sum(domingo.values()):
+                raise ValueError(f"{nombre}: el domingo del grupo {grupo} hay {disponibles} personas para {sum(domingo.values())} puestos mínimos.")
+        for dia in range(6):
             disponibles = len(empleados) - dias_libres.count(dia)
             if disponibles < puestos:
                 raise ValueError(
@@ -124,54 +142,42 @@ def generar(config, inicio, semanas, *, fin=None):
     for nombre in AREAS:
         area = config["areas"][nombre]
         empleados = area["empleados"]
-        puestos = [t for t in config["turnos"] for _ in range(area["cobertura"].get(t, 0))]
-        # Cada persona recorre todos los puestos y luego los días libres.
-        ciclo = puestos + ["LIBRE"] * (len(empleados) - len(puestos))
-        resultado[nombre] = {
-            empleado: [ciclo[(i + (dia - origen).days + area.get("desfase", 0)) % len(ciclo)]
-                       for dia in fechas]
-            for i, empleado in enumerate(empleados)
-        }
-        libres = {e: numero_dia(d) for e, d in area.get("dias_libres", {}).items()}
-        for columna, dia in enumerate(fechas):
-            ausentes = {e for e, d in libres.items() if d == dia.weekday()}
+        resultado[nombre] = {e: [] for e in empleados}
+        libres = {e: numero_dia(d) for e, d in area["dias_libres"].items()}
+        origen_lunes = origen - timedelta(days=origen.weekday())
+        activos = [t for t in config["turnos"] if area["cobertura"].get(t, 0) > 0]
+        for dia in fechas:
+            semana = (dia - origen_lunes).days // 7
+            ausentes = {
+                e for i, e in enumerate(empleados)
+                if (dia.weekday() < 6 and libres[e] == dia.weekday())
+                or (dia.weekday() == 6 and semana % 2 == area.get("domingo_grupo", {}).get(e, i % 2))
+            }
             lunes = (dia - timedelta(days=dia.weekday())).isoformat()
             seleccion = area.get("turnos_semanales", {}).get(lunes, {})
-            if seleccion:
-                pendientes = dict(area["cobertura"])
-                for empleado in empleados:
-                    turno = seleccion.get(empleado) if empleado not in ausentes else None
-                    resultado[nombre][empleado][columna] = turno or "LIBRE"
-                    if turno:
-                        pendientes[turno] = pendientes.get(turno, 0) - 1
-                        if pendientes[turno] < 0:
-                            raise ValueError(
-                                f"{nombre}, {dia:%d/%m/%Y}: las selecciones semanales del turno "
-                                f"{turno} superan la cobertura. Ajusta la selección o la cobertura."
-                            )
-                disponibles = [e for e in empleados if e not in seleccion and e not in ausentes]
-                offset = ((dia - origen).days + area.get("desfase", 0)) % max(1, len(disponibles))
-                disponibles = disponibles[offset:] + disponibles[:offset]
-                vacantes = [t for t in config["turnos"] for _ in range(pendientes.get(t, 0))]
-                if len(vacantes) > len(disponibles):
-                    raise ValueError(f"{nombre}, {dia:%d/%m/%Y}: no se puede cubrir la selección semanal.")
-                for empleado, turno in zip(disponibles, vacantes):
-                    resultado[nombre][empleado][columna] = turno
-                continue
-            vacantes = []
-            for empleado in empleados:
-                if empleado in ausentes:
-                    turno = resultado[nombre][empleado][columna]
-                    if turno != "LIBRE":
-                        vacantes.append(turno)
-                    resultado[nombre][empleado][columna] = "LIBRE"
-            # La prioridad depende de la fecha, no del inicio de la exportación.
-            offset = ((dia - origen).days + area.get("desfase", 0)) % len(empleados)
-            orden = empleados[offset:] + empleados[:offset]
-            reemplazos = [e for e in orden if e not in ausentes
-                          and resultado[nombre][e][columna] == "LIBRE"]
-            for turno, empleado in zip(vacantes, reemplazos):
-                resultado[nombre][empleado][columna] = turno
+            cobertura = area.get("cobertura_domingo", area["cobertura"]) if dia.weekday() == 6 else area["cobertura"]
+            pendientes = dict(cobertura)
+            asignados = {e: "LIBRE" for e in ausentes}
+            for e, turno in seleccion.items():
+                if e not in ausentes:
+                    asignados[e] = turno
+                    pendientes[turno] = max(0, pendientes.get(turno, 0) - 1)
+            disponibles = [e for e in empleados if e not in asignados]
+            offset = ((dia - origen).days + area.get("desfase", 0)) % max(1, len(disponibles))
+            disponibles = disponibles[offset:] + disponibles[:offset]
+            vacantes = [t for t in config["turnos"] for _ in range(pendientes.get(t, 0))]
+            if len(vacantes) > len(disponibles):
+                raise ValueError(
+                    f"{nombre}, {dia:%d/%m/%Y}: no se puede cubrir el m?nimo de turnos "
+                    "respetando los descansos y selecciones semanales. "
+                    "Revisa la dotaci?n, cobertura o domingo_grupo."
+                )
+            for e, turno in zip(disponibles, vacantes):
+                asignados[e] = turno
+            for e in disponibles[len(vacantes):]:
+                asignados[e] = activos[(empleados.index(e) + semana + area.get("desfase", 0)) % len(activos)]
+            for e in empleados:
+                resultado[nombre][e].append(asignados[e])
     return fechas, resultado
 
 

@@ -36,9 +36,9 @@ Se separa en calendarios por mes, marcando las fechas no incluidas como
 - `inicio_rotacion`: fecha de referencia del ciclo. Conserva esta fecha entre exportaciones para mantener la continuidad.
 - `turnos`: códigos y descripciones de los turnos, en el orden de rotación deseado. Las horas se muestran como texto.
 - `empleados`: lista ordenada de personas de cada área.
-- `cobertura`: cantidad de personas necesarias **cada día** por turno y área.
+- `cobertura`: mínimo de personas por turno; las personas adicionales también trabajan.
 - `desfase`: adelanta el ciclo del área el número de días indicado; normalmente puedes dejarlo en cero.
-- `dias_libres`: día libre fijo semanal de cada persona (opcional).
+- `dias_libres`: día libre fijo obligatorio de cada persona, de lunes a sábado.
 
 ## Elegir un día libre por persona
 
@@ -54,16 +54,22 @@ los nombres de la lista `empleados`. Por ejemplo, en Cocina:
 }
 ```
 
-Ana tendrá libre todos los lunes, Luis todos los martes, y así sucesivamente
-durante todas las semanas exportadas. Puedes elegir de lunes a domingo;
-se aceptan mayúsculas y nombres con o sin tilde. Para dejar a alguien sin día
-fijo, elimina su entrada. Para desactivar esta opción en un área, usa `{}`.
+Cada persona debe tener un día fijo de lunes a sábado: será su único descanso
+entre esos días. Además, tendrá un domingo libre y el siguiente trabajado.
+Alternará semanas con dos descansos y con uno; todos los demás días tendrán turno.
 
-Los descansos se muestran como `LIBRE` en el Excel. Puede haber días libres
-adicionales según la cobertura. El programa reasigna los turnos que coincidan
-con un descanso fijo a personas disponibles, manteniendo la cobertura diaria.
-Si no es posible cubrirla, indica el área y día del conflicto y no genera el
-archivo. Con descansos fijos, la cantidad de turnos por persona puede variar.
+Por defecto, las posiciones 1, 3, 5 de empleados descansan el domingo de la semana
+de `inicio_rotacion`; las posiciones 2, 4, 6 descansan el siguiente. Puedes elegir
+el grupo dentro del área: `"domingo_grupo": {"Ana": 0, "Luis": 1}`. El grupo 0
+descansa en la semana de referencia y el 1 en la siguiente. Para personas omitidas
+se utiliza su posición. La alternancia continúa entre meses y años: conserva la
+fecha de referencia, el orden de empleados y los grupos para mantenerla.
+
+Puedes definir `cobertura_domingo` con mínimos distintos para domingos; si no
+existe se usa `cobertura`. En el ejemplo, Garzones tiene tres personas disponibles
+cada domingo: se exige una de mañana y una de tarde, y la tercera también recibe
+turno. Si no alcanza la dotación, el programa informa el conflicto sin modificar
+descansos ni generar el Excel.
 
 ## Elegir turnos por semana
 
@@ -79,29 +85,23 @@ desde el lunes indicado hasta el domingo, incluso si la semana cruza de mes:
 }
 ```
 
-La persona tendrá ese turno todos los días de esa semana salvo su día libre
-fijo. Quienes no tengan selección completan la cobertura automáticamente y
-pueden tener descansos adicionales. Usa `{}` para mantener la rotación automática.
+La persona tendrá ese turno salvo su día fijo y el domingo que le toque descansar.
+Quienes no tengan selección completan los mínimos y también reciben turno en los
+días restantes. Usa `{}` para mantener la asignación automática.
 Las selecciones no se repiten en semanas futuras: agrega el lunes de cada semana.
 
-La cobertura sigue indicando la cantidad **exacta** de personas por turno.
-El intermedio comienza con `"I": 0`; para usarlo en Cocina, por ejemplo, cambia
-la cobertura a `{"M": 1, "T": 1, "I": 1}`. Si una selección supera la cobertura
-o impide cubrirla, el programa indica el área y la fecha, sin generar el Excel.
+La cobertura indica cantidades **mínimas**, que pueden superarse. Puedes elegir
+intermedio aunque su mínimo sea cero si quedan personas para cubrir los demás
+turnos. Para exigir intermedio, incrementa `I` en la cobertura correspondiente.
+Si una selección impide cubrir los mínimos, se informa el área y la fecha.
 
 ## Ciclo base
 
-Sin días libres fijos, Cocina y Barra tienen cuatro personas y dos puestos diarios:
-cada persona repite el ciclo mañana, tarde, libre, libre, empezando en un punto
-distinto. Garzones tiene seis personas y cuatro puestos diarios: mañana,
-mañana, tarde, tarde, libre, libre. En un ciclo completo todos pasan por la
-misma cantidad de cada turno y de días libres. En períodos parciales puede
-haber una diferencia. Cada persona tiene como máximo un turno por día.
-
-La cobertura se mantiene igual de lunes a domingo. Si hay más puestos que
-personas, el programa informa el error; si hay tantos puestos como personas,
-no habrá días libres. Cambiar el orden de empleados, la cobertura o los turnos
-cambia el ciclo, incluso para fechas ya exportadas.
+Primero se respetan los descansos y selecciones semanales; después se cubren
+los mínimos. Las personas adicionales reciben turnos con cobertura positiva,
+con una prioridad que rota semanalmente. No se garantiza igualdad de turnos.
+Cada persona tiene como máximo un turno por día. Cambiar la configuración
+puede modificar resultados para fechas ya exportadas.
 
 Esta versión no contempla vacaciones, ausencias, otras restricciones de disponibilidad,
 límites de horas ni descansos mínimos entre turnos. Revisa esos requisitos

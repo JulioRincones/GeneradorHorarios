@@ -26,6 +26,7 @@
       "dias_libres": {"Camila": "lunes", "Matías": "martes", "Javiera": "miércoles", "Nicolás": "jueves", "Daniela": "viernes", "Felipe": "sábado"},
       "turnos_semanales": {},
       "cobertura": {"M": 2, "T": 2, "I": 0},
+      "cobertura_domingo": {"M": 1, "T": 1, "I": 0},
       "desfase": 2
     }
   }
