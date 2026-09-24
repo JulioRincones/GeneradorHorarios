@@ -75,8 +75,40 @@ descansos ni generar el Excel.
 
 Los tres turnos disponibles son `M` (mañana, 09:00 a 17:00), `T` (tarde,
 16:00 a 00:00, medianoche al terminar el día) e `I` (intermedio, 13:00 a 19:00).
-Dentro de cada área, cambia `turnos_semanales` para elegir un turno por persona
-desde el lunes indicado hasta el domingo, incluso si la semana cruza de mes:
+Dentro de cada área, usa `turnos_por_mes` para elegir un turno por trabajador
+para cada semana del calendario mensual:
+
+```json
+"turnos_por_mes": {
+  "2026-09": {
+    "Ana": ["M", "T", "M", "T", "M"],
+    "Luis": ["M", "T", "M", "T", "M"],
+    "Carla": ["T", "M", "T", "M", "T"],
+    "Pedro": ["T", "M", "T", "M", "T"]
+  }
+}
+```
+
+Cada posición corresponde a una fila del calendario: semana 1, 2, 3, etc.
+La primera contiene el día 1, aunque empiece en el mes anterior. En septiembre
+de 2026 las semanas comienzan el 31 de agosto y el 7, 14, 21 y 28 de septiembre.
+Incluye 4, 5 o 6 turnos según las filas del mes; el programa indica la cantidad
+necesaria si la lista no coincide. Los valores permitidos son `M`, `T` e `I`.
+
+**El turno seleccionado es fijo durante toda la semana, de lunes a domingo.**
+Solo se sustituye por `LIBRE` en el día fijo o el domingo que corresponda.
+Si la cobertura es incompatible, el programa informa el conflicto; no cambia
+el turno elegido para cubrir faltantes. La alternancia dominical no se reinicia.
+
+Las semanas compartidas por dos meses conservan el mismo turno. Si configuras
+ambos meses, la última selección de uno y la primera del siguiente deben coincidir
+cuando compartan una semana. El programa rechaza selecciones contradictorias.
+
+La configuración incluida ya trae septiembre de 2026 para todos los trabajadores.
+Agrega otros meses y personas con el mismo formato. Las personas o semanas sin
+selección usan asignación automática, que puede cambiar de turno entre días.
+
+También se mantiene la opción `turnos_semanales` por fecha exacta del lunes:
 
 ```json
 "turnos_semanales": {

@@ -9,6 +9,14 @@
   "areas": {
     "Cocina": {
       "empleados": ["Ana", "Luis", "Carla", "Pedro"],
+      "turnos_por_mes": {
+        "2026-09": {
+          "Ana": ["M", "T", "M", "T", "M"],
+          "Luis": ["M", "T", "M", "T", "M"],
+          "Carla": ["T", "M", "T", "M", "T"],
+          "Pedro": ["T", "M", "T", "M", "T"]
+        }
+      },
       "dias_libres": {"Ana": "lunes", "Luis": "martes", "Carla": "miércoles", "Pedro": "jueves"},
       "turnos_semanales": {},
       "cobertura": {"M": 1, "T": 1, "I": 0},
@@ -16,6 +24,14 @@
     },
     "Barra": {
       "empleados": ["Sofía", "Diego", "Valentina", "Tomás"],
+      "turnos_por_mes": {
+        "2026-09": {
+          "Sofía": ["M", "T", "M", "T", "M"],
+          "Diego": ["M", "T", "M", "T", "M"],
+          "Valentina": ["T", "M", "T", "M", "T"],
+          "Tomás": ["T", "M", "T", "M", "T"]
+        }
+      },
       "dias_libres": {"Sofía": "lunes", "Diego": "martes", "Valentina": "miércoles", "Tomás": "jueves"},
       "turnos_semanales": {},
       "cobertura": {"M": 1, "T": 1, "I": 0},
@@ -23,6 +39,16 @@
     },
     "Garzones": {
       "empleados": ["Camila", "Matías", "Javiera", "Nicolás", "Daniela", "Felipe"],
+      "turnos_por_mes": {
+        "2026-09": {
+          "Camila": ["M", "T", "M", "T", "M"],
+          "Matías": ["M", "T", "M", "T", "M"],
+          "Javiera": ["M", "T", "M", "T", "M"],
+          "Nicolás": ["T", "M", "T", "M", "T"],
+          "Daniela": ["T", "M", "T", "M", "T"],
+          "Felipe": ["T", "M", "T", "M", "T"]
+        }
+      },
       "dias_libres": {"Camila": "lunes", "Matías": "martes", "Javiera": "miércoles", "Nicolás": "jueves", "Daniela": "viernes", "Felipe": "sábado"},
       "turnos_semanales": {},
       "cobertura": {"M": 2, "T": 2, "I": 0},

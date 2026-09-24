@@ -33,6 +33,60 @@ def numero_dia(valor):
     raise ValueError("El día libre debe ser lunes, martes, miércoles, jueves, viernes, sábado o domingo.")
 
 
+def selecciones_del_area(nombre, area, turnos):
+    """Unifica las selecciones por lunes y por filas del calendario mensual."""
+    resultado = {}
+
+    def agregar(lunes, persona, turno):
+        if persona not in area["empleados"]:
+            raise ValueError(f"{nombre}: empleado desconocido en selección semanal: {persona}.")
+        if not isinstance(turno, str) or turno not in turnos:
+            raise ValueError(f"{nombre}, {persona}: turno semanal desconocido: {turno}.")
+        semana = resultado.setdefault(lunes, {})
+        if persona in semana and semana[persona] != turno:
+            raise ValueError(
+                f"{nombre}, {persona}: turnos contradictorios para la semana del {lunes}. "
+                "Las semanas compartidas entre meses deben tener el mismo turno."
+            )
+        semana[persona] = turno
+
+    seleccion = area.get("turnos_semanales", {})
+    if not isinstance(seleccion, dict):
+        raise ValueError(f"{nombre}: turnos_semanales debe ser un objeto con fechas de lunes.")
+    for lunes, asignaciones in seleccion.items():
+        try:
+            fecha = date.fromisoformat(lunes)
+            if fecha.weekday() != 0 or fecha.isoformat() != lunes:
+                raise ValueError
+        except (ValueError, TypeError):
+            raise ValueError(f"{nombre}: {lunes} debe ser un lunes en formato AAAA-MM-DD.") from None
+        if not isinstance(asignaciones, dict):
+            raise ValueError(f"{nombre}, {lunes}: indica un turno por persona.")
+        for persona, turno in asignaciones.items():
+            agregar(lunes, persona, turno)
+
+    meses = area.get("turnos_por_mes", {})
+    if not isinstance(meses, dict):
+        raise ValueError(f"{nombre}: turnos_por_mes debe ser un objeto con meses AAAA-MM.")
+    for mes, personas in meses.items():
+        try:
+            primero = date.fromisoformat(mes + "-01")
+            if len(mes) != 7:
+                raise ValueError
+        except (ValueError, TypeError):
+            raise ValueError(f"{nombre}: mes inválido {mes}; usa AAAA-MM.") from None
+        semanas = calendar.Calendar(firstweekday=0).monthdayscalendar(primero.year, primero.month)
+        primer_lunes = primero - timedelta(days=primero.weekday())
+        if not isinstance(personas, dict):
+            raise ValueError(f"{nombre}, {mes}: indica una lista de turnos por persona.")
+        for persona, lista in personas.items():
+            if not isinstance(lista, list) or len(lista) != len(semanas):
+                raise ValueError(f"{nombre}, {persona}: {mes} necesita {len(semanas)} turnos, uno por semana del calendario.")
+            for indice, turno in enumerate(lista):
+                agregar((primer_lunes + timedelta(weeks=indice)).isoformat(), persona, turno)
+    return resultado
+
+
 def validar(config):
     if not isinstance(config, dict):
         raise ValueError("La configuración debe ser un objeto JSON.")
@@ -70,23 +124,7 @@ def validar(config):
         if puestos == 0 or puestos > len(empleados):
             raise ValueError(f"{nombre}: la cobertura debe ser entre 1 y {len(empleados)} personas por día.")
         entero(area.get("desfase", 0), f"Desfase de {nombre}")
-        seleccion = area.get("turnos_semanales", {})
-        if not isinstance(seleccion, dict):
-            raise ValueError(f"{nombre}: turnos_semanales debe ser un objeto con fechas de lunes.")
-        for lunes, asignaciones in seleccion.items():
-            try:
-                fecha = date.fromisoformat(lunes)
-                if fecha.weekday() != 0 or fecha.isoformat() != lunes:
-                    raise ValueError
-            except (ValueError, TypeError):
-                raise ValueError(f"{nombre}: {lunes} debe ser un lunes en formato AAAA-MM-DD.") from None
-            if not isinstance(asignaciones, dict):
-                raise ValueError(f"{nombre}, {lunes}: indica un turno por persona.")
-            for persona, turno in asignaciones.items():
-                if persona not in empleados:
-                    raise ValueError(f"{nombre}: empleado desconocido en turnos_semanales: {persona}.")
-                if not isinstance(turno, str) or turno not in turnos:
-                    raise ValueError(f"{nombre}, {persona}: turno semanal desconocido: {turno}.")
+        selecciones_del_area(nombre, area, turnos)
         libres = area.get("dias_libres", {})
         if not isinstance(libres, dict):
             raise ValueError(f"{nombre}: dias_libres debe asociar nombres con días de la semana.")
@@ -146,6 +184,7 @@ def generar(config, inicio, semanas, *, fin=None):
         libres = {e: numero_dia(d) for e, d in area["dias_libres"].items()}
         origen_lunes = origen - timedelta(days=origen.weekday())
         activos = [t for t in config["turnos"] if area["cobertura"].get(t, 0) > 0]
+        selecciones = selecciones_del_area(nombre, area, config["turnos"])
         for dia in fechas:
             semana = (dia - origen_lunes).days // 7
             ausentes = {
@@ -154,7 +193,7 @@ def generar(config, inicio, semanas, *, fin=None):
                 or (dia.weekday() == 6 and semana % 2 == area.get("domingo_grupo", {}).get(e, i % 2))
             }
             lunes = (dia - timedelta(days=dia.weekday())).isoformat()
-            seleccion = area.get("turnos_semanales", {}).get(lunes, {})
+            seleccion = selecciones.get(lunes, {})
             cobertura = area.get("cobertura_domingo", area["cobertura"]) if dia.weekday() == 6 else area["cobertura"]
             pendientes = dict(cobertura)
             asignados = {e: "LIBRE" for e in ausentes}
@@ -168,9 +207,9 @@ def generar(config, inicio, semanas, *, fin=None):
             vacantes = [t for t in config["turnos"] for _ in range(pendientes.get(t, 0))]
             if len(vacantes) > len(disponibles):
                 raise ValueError(
-                    f"{nombre}, {dia:%d/%m/%Y}: no se puede cubrir el m?nimo de turnos "
+                    f"{nombre}, {dia:%d/%m/%Y}: no se puede cubrir el mínimo de turnos "
                     "respetando los descansos y selecciones semanales. "
-                    "Revisa la dotaci?n, cobertura o domingo_grupo."
+                    "Revisa la dotación, cobertura o domingo_grupo."
                 )
             for e, turno in zip(disponibles, vacantes):
                 asignados[e] = turno

@@ -6,13 +6,79 @@ from datetime import date, timedelta
 from pathlib import Path
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
-from horarios import BASE, NS, exportar, generar, generar_mes, hoja, numero_dia
+from horarios import BASE, NS, exportar, generar, generar_mes, hoja, numero_dia, selecciones_del_area
 
 
 class HorariosTest(unittest.TestCase):
     def setUp(self):
         self.config = json.loads((BASE / "configuracion.json").read_text(encoding="utf-8"))
+        for area in self.config["areas"].values():
+            area.pop("turnos_por_mes", None)
         self.inicio = date(2026, 9, 28)
+
+    def test_ejemplo_mensual_turnos_fijos_y_descansos(self):
+        config = json.loads((BASE / "configuracion.json").read_text(encoding="utf-8"))
+        fechas, resultado = generar(config, date(2026, 8, 31), 5)
+        for nombre, area in config["areas"].items():
+            for persona, lista in area["turnos_por_mes"]["2026-09"].items():
+                domingos = []
+                for semana, turno in enumerate(lista):
+                    seleccion = resultado[nombre][persona][semana*7:semana*7+7]
+                    self.assertEqual(set(seleccion) - {"LIBRE"}, {turno})
+                    self.assertEqual(seleccion[:6].count("LIBRE"), 1)
+                    self.assertEqual(seleccion[numero_dia(area["dias_libres"][persona])], "LIBRE")
+                    domingos.append(seleccion[6] == "LIBRE")
+                self.assertTrue(all(a != b for a, b in zip(domingos, domingos[1:])))
+            for i, dia in enumerate(fechas):
+                cobertura = area.get("cobertura_domingo", area["cobertura"]) if dia.weekday() == 6 else area["cobertura"]
+                cuentas = Counter(turnos[i] for turnos in resultado[nombre].values())
+                for turno, minimo in cobertura.items():
+                    self.assertGreaterEqual(cuentas[turno], minimo)
+
+    def test_mes_semanas_parciales_y_continuidad(self):
+        area = self.config["areas"]["Cocina"]
+        area["turnos_por_mes"] = {"2026-09": {"Ana": ["M", "T", "M", "T", "M"]},
+                                 "2026-10": {"Ana": ["M", "T", "M", "T", "M"]}}
+        fechas, completo = generar(self.config, date(2026, 9, 28), 1)
+        _, septiembre = generar_mes(self.config, date(2026, 9, 1))
+        _, octubre = generar_mes(self.config, date(2026, 10, 1))
+        for nombre, empleados in completo.items():
+            for persona, turnos in empleados.items():
+                self.assertEqual(septiembre[nombre][persona][-3:] + octubre[nombre][persona][:4], turnos)
+
+    def test_semanas_mensuales_de_cuatro_cinco_y_seis_filas(self):
+        area = self.config["areas"]["Cocina"]
+        for mes, cantidad, primer_lunes in (("2027-02", 4, "2027-02-01"),
+                                           ("2026-09", 5, "2026-08-31"),
+                                           ("2026-03", 6, "2026-02-23")):
+            with self.subTest(mes=mes):
+                area["turnos_por_mes"] = {mes: {"Ana": ["I"] * cantidad}}
+                seleccion = selecciones_del_area("Cocina", area, self.config["turnos"])
+                self.assertEqual(len(seleccion), cantidad)
+                self.assertEqual(seleccion[primer_lunes], {"Ana": "I"})
+
+    def test_seleccion_mensual_invalida_y_conflictos(self):
+        area = self.config["areas"]["Cocina"]
+        casos = [[], {"2026-13": {}}, {"2026-9": {}},
+                 {"2026-09": {"Ana": ["M"]}},
+                 {"2026-09": {"Ana": ["X"] * 5}},
+                 {"2026-09": {"Otra": ["M"] * 5}},
+                 {"2026-09": {"Ana": ["M"] * 5}, "2026-10": {"Ana": ["T"] * 5}}]
+        for valor in casos:
+            with self.subTest(valor=valor):
+                area["turnos_por_mes"] = valor
+                with self.assertRaises(ValueError):
+                    generar_mes(self.config, date(2026, 9, 1))
+        area["turnos_por_mes"] = {"2026-09": {"Ana": ["M"] * 5}}
+        area["turnos_semanales"] = {"2026-09-28": {"Ana": "T"}}
+        with self.assertRaisesRegex(ValueError, "contradictorios"):
+            generar_mes(self.config, date(2026, 9, 1))
+
+    def test_no_cambia_turno_mensual_para_cubrir_faltantes(self):
+        area = self.config["areas"]["Cocina"]
+        area["turnos_por_mes"] = {"2026-09": {e: ["M"] * 5 for e in area["empleados"]}}
+        with self.assertRaisesRegex(ValueError, "no se puede cubrir"):
+            generar_mes(self.config, date(2026, 9, 1))
 
     def test_descansos_exactos_y_domingos_alternos(self):
         fechas, resultado = generar(self.config, date(2026, 12, 21), 8)
