@@ -1,4 +1,4 @@
 @echo off
 cd /d "%~dp0"
-python horarios.py
-pause
+python interfaz.py
+if errorlevel 1 pause

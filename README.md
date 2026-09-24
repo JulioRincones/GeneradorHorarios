@@ -9,8 +9,8 @@ descripción del turno o `LIBRE`; los días ajenos al mes quedan vacíos.
 ## Uso
 
 1. Edita `configuracion.json` con los nombres y turnos de tu empresa.
-2. En Windows, haz doble clic en `generar.bat`: genera el mes actual completo.
-3. Abre el archivo en la carpeta `salidas` con Excel o LibreOffice.
+2. En Windows, haz doble clic en `generar.bat` para abrir la interfaz gráfica.
+3. Elige el mes y pulsa **Mostrar mes**. Edita las personas y pulsa **Generar Excel…** para elegir dónde guardarlo.
 4. Revisa la vista previa de impresión y selecciona todo el libro para imprimir las tres áreas.
 
 También puedes elegir el mes y archivo desde una terminal:
@@ -20,6 +20,27 @@ python horarios.py --mes 2026-10 --salida salidas/octubre.xlsx
 ```
 
 Si el archivo ya existe, el programa pide usar otro nombre para proteger cambios manuales.
+
+## Interfaz para Windows
+
+También puedes abrirla con `python interfaz.py`. Utiliza tkinter, incluido en
+la instalación habitual de Python para Windows; no requiere paquetes externos.
+
+- Las pestañas separan Cocina, Barra y Garzones.
+- Haz doble clic en una persona para editar su nombre, día libre, grupo de
+  domingos y turno de cada semana. Las fechas de cada semana aparecen junto
+  al selector. `Automático` permite que el programa distribuya turnos por día.
+- **Agregar persona** y **Eliminar** actualizan también las asignaciones guardadas.
+- **Cobertura mínima** permite ajustar por separado lunes a sábado y domingos.
+- **Guardar cambios** (Ctrl+S) conserva la configuración para futuras sesiones.
+- **Vista previa** muestra el calendario calculado, incluidos todos los descansos.
+- **Generar Excel…** exporta los cambios actuales y **Abrir último Excel** abre
+  el archivo con la aplicación asociada en Windows. Exportar no guarda la configuración.
+
+Las semanas compartidas entre meses se actualizan juntas. La interfaz conserva
+los grupos dominicales al renombrar o eliminar personas. Antes de exportar se
+comprueba la cobertura; si hay conflictos, se indican para que puedas corregirlos.
+Al cerrar con cambios pendientes puedes guardarlos, descartarlos o seguir editando.
 
 El archivo predeterminado se llama `salidas/horarios_AAAA-MM.xlsx`.
 Se incluyen todos los días del mes, incluso los anteriores a hoy. La rotación
