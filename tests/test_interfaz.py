@@ -11,6 +11,7 @@ from datetime import timedelta
 class InterfazTest(unittest.TestCase):
     def setUp(self):
         self.config = json.loads((BASE / "configuracion.json").read_text(encoding="utf-8"))
+        self.config.pop("rotacion_mensual", None)
         self.config["areas"]["Cocina"] = {
             "empleados": ["Ana", "Luis", "Carla", "Pedro"],
             "dias_libres": {"Ana": "lunes", "Luis": "martes", "Carla": "miércoles", "Pedro": "jueves"},

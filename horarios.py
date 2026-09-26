@@ -53,6 +53,25 @@ def horario_del_dia(config, codigo, fecha):
     return config["turnos"][codigo]
 
 
+def turno_rotacion_mensual(area, persona, fecha):
+    primero = fecha.replace(day=1)
+    semana = (fecha.day - 1 + primero.weekday()) // 7
+    indice = area["empleados"].index(persona)
+    grupo = area.get("domingo_grupo", {}).get(persona, indice % 2)
+    return "M" if (semana + grupo) % 2 == 0 else "T"
+
+
+def seleccion_para_fecha(config, area, seleccion, persona, fecha):
+    lunes = fecha - timedelta(days=fecha.weekday())
+    elegido = seleccion.get(lunes.isoformat(), {}).get(persona)
+    full = area.get("jornadas", {}).get(persona, {}).get("tipo", "full_time") == "full_time"
+    if full and config.get("rotacion_mensual", False):
+        mes_configurado = persona in area.get("turnos_por_mes", {}).get(f"{fecha:%Y-%m}", {})
+        if elegido is None or (lunes.month != fecha.month and not mes_configurado):
+            return turno_rotacion_mensual(area, persona, fecha)
+    return elegido
+
+
 def ajustar_horas(config, fechas, turnos, persona, *, verificar=True, jornada=None):
     jornada = jornada or {"tipo": "full_time"}
     tipo = jornada["tipo"]
@@ -311,6 +330,12 @@ def validar(config, *, verificar_cobertura=True):
             raise ValueError(f"{nombre}: cada persona necesita un día libre fijo de lunes a sábado.")
         descansos_encargados(area)
         grupos = area.get("domingo_grupo", {})
+        turnos_domingo = area.get("domingo_turno", {})
+        if not isinstance(turnos_domingo, dict) or any(
+            e not in empleados or t not in ("M", "T") or t not in turnos
+            for e, t in turnos_domingo.items()
+        ):
+            raise ValueError(f"{nombre}: domingo_turno debe asociar empleados con M (mañana) o T (tarde).")
         if not isinstance(grupos, dict) or any(
             e not in empleados or type(g) is not int or g not in (0, 1) for e, g in grupos.items()
         ):
@@ -374,6 +399,14 @@ def generar(config, inicio, semanas, *, fin=None, diagnostico=False):
             lunes = (dia - timedelta(days=dia.weekday())).isoformat()
             seleccion = {e: t for e, t in selecciones.get(lunes, {}).items()
                          if area.get("jornadas", {}).get(e, {}).get("tipo") != "part_time_20"}
+            if config.get("rotacion_mensual", False):
+                for e in empleados:
+                    if area.get("jornadas", {}).get(e, {}).get("tipo", "full_time") == "full_time":
+                        seleccion[e] = seleccion_para_fecha(config, area, selecciones, e, dia)
+            if dia.weekday() == 6:
+                for e, turno in area.get("domingo_turno", {}).items():
+                    if area.get("jornadas", {}).get(e, {}).get("tipo") != "part_time_20":
+                        seleccion[e] = turno
             cobertura = area.get("cobertura_domingo", area["cobertura"]) if dia.weekday() == 6 else area["cobertura"]
             pendientes = dict(cobertura)
             asignados = {e: "LIBRE" for e in ausentes}

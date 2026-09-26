@@ -1,5 +1,6 @@
 {
   "empresa": "Mi restaurante",
+  "rotacion_mensual": true,
   "inicio_rotacion": "2026-01-05",
   "turnos": {
     "M": "Mañana · 09:00 a 17:00",
@@ -9,88 +10,154 @@
   "areas": {
     "Cocina": {
       "empleados": [
-        "Ana",
-        "Luis",
-        "Carla",
-        "Pedro",
-        "Veronica",
+        "Victor",
+        "Cristina",
+        "Pamela",
+        "Eduardo",
+        "Yosi",
         "Andrea"
       ],
       "turnos_por_mes": {
         "2026-09": {
-          "Pedro": [
+          "Victor": [
             "I",
             "I",
             "I",
             "I",
-            "I"
+            "M"
           ],
-          "Carla": [
+          "Pamela": [
             "T",
             "M",
             "T",
             "M",
+            "M"
+          ],
+          "Eduardo": [
+            "I",
+            "I",
+            "I",
+            "I",
             "T"
           ],
-          "Ana": [
-            "I",
-            "I",
-            "I",
-            "I",
+          "Cristina": [
+            "M",
+            "T",
+            "M",
+            "T",
             "I"
-          ],
-          "Luis": [
+          ]
+        },
+        "2026-10": {
+          "Victor": [
             "M",
             "T",
             "M",
             "T",
             "M"
+          ],
+          "Pamela": [
+            "M",
+            "T",
+            "M",
+            "T",
+            "M"
+          ],
+          "Eduardo": [
+            "T",
+            "T",
+            "M",
+            "T",
+            "M"
+          ],
+          "Yosi": [
+            "M",
+            "T",
+            "M",
+            "T",
+            "M"
+          ],
+          "Cristina": [
+            "I",
+            "I",
+            "I",
+            "I",
+            "I"
           ]
         }
       },
       "dias_libres": {
-        "Veronica": "martes",
-        "Pedro": "jueves",
-        "Carla": "miércoles",
-        "Ana": "viernes",
-        "Luis": "lunes",
-        "Andrea": "lunes"
+        "Andrea": "lunes",
+        "Victor": "viernes",
+        "Pamela": "miércoles",
+        "Eduardo": "jueves",
+        "Yosi": "martes",
+        "Cristina": "lunes"
       },
       "turnos_semanales": {
         "2026-08-31": {
-          "Pedro": "I",
-          "Carla": "T",
-          "Ana": "I",
-          "Luis": "M",
-          "Andrea": "T"
+          "Andrea": "T",
+          "Victor": "I",
+          "Pamela": "T",
+          "Eduardo": "I",
+          "Cristina": "M"
         },
         "2026-09-07": {
-          "Pedro": "I",
-          "Carla": "M",
-          "Ana": "I",
-          "Luis": "T",
-          "Andrea": "M"
+          "Andrea": "M",
+          "Victor": "I",
+          "Pamela": "M",
+          "Eduardo": "I",
+          "Cristina": "T"
         },
         "2026-09-14": {
-          "Pedro": "I",
-          "Carla": "T",
-          "Ana": "I",
-          "Luis": "M",
-          "Andrea": "T"
+          "Andrea": "T",
+          "Victor": "I",
+          "Pamela": "T",
+          "Eduardo": "I",
+          "Cristina": "M"
         },
         "2026-09-21": {
-          "Pedro": "I",
-          "Carla": "M",
-          "Ana": "I",
-          "Luis": "T",
-          "Andrea": "M"
+          "Andrea": "M",
+          "Victor": "I",
+          "Pamela": "M",
+          "Eduardo": "I",
+          "Cristina": "T"
         },
         "2026-09-28": {
-          "Pedro": "I",
-          "Carla": "T",
-          "Ana": "I",
-          "Luis": "M",
-          "Andrea": "T"
+          "Andrea": "T",
+          "Victor": "M",
+          "Pamela": "M",
+          "Eduardo": "T",
+          "Yosi": "M",
+          "Cristina": "I"
+        },
+        "2026-10-05": {
+          "Victor": "T",
+          "Pamela": "T",
+          "Eduardo": "T",
+          "Yosi": "T",
+          "Cristina": "I"
+        },
+        "2026-10-12": {
+          "Victor": "M",
+          "Pamela": "M",
+          "Eduardo": "M",
+          "Yosi": "M",
+          "Cristina": "I"
+        },
+        "2026-10-19": {
+          "Victor": "T",
+          "Pamela": "T",
+          "Eduardo": "T",
+          "Yosi": "T",
+          "Cristina": "I"
+        },
+        "2026-10-26": {
+          "Victor": "M",
+          "Pamela": "M",
+          "Eduardo": "M",
+          "Yosi": "M",
+          "Cristina": "I"
         }
       },
       "cobertura": {
@@ -100,61 +167,100 @@
       },
       "desfase": 0,
       "domingo_grupo": {
-        "Veronica": 0,
-        "Pedro": 1,
-        "Carla": 0,
-        "Ana": 0,
-        "Luis": 1,
-        "Andrea": 1
+        "Andrea": 1,
+        "Victor": 0,
+        "Pamela": 0,
+        "Eduardo": 1,
+        "Yosi": 0,
+        "Cristina": 1
       },
-      "encargados": {
-        "Veronica": [
-          "2026-09-02",
-          "2026-09-09",
-          "2026-09-16",
-          "2026-09-23",
-          "2026-09-30"
-        ]
-      },
+      "encargados": {},
       "cobertura_domingo": {
         "M": 1,
         "T": 1,
         "I": 0
+      },
+      "jornadas": {
+        "Victor": {
+          "tipo": "full_time"
+        },
+        "Pamela": {
+          "tipo": "full_time"
+        },
+        "Eduardo": {
+          "tipo": "full_time"
+        },
+        "Yosi": {
+          "tipo": "full_time"
+        },
+        "Cristina": {
+          "tipo": "full_time"
+        }
       }
     },
     "Barra": {
       "empleados": [
-        "Sofía",
-        "Diego",
-        "Valentina",
-        "Tomás",
+        "Matias",
+        "Victor",
+        "Mary",
+        "Veronica",
         "EDU",
         "Angelica"
       ],
       "turnos_por_mes": {
         "2026-09": {
-          "Diego": [
+          "Victor": [
+            "M",
+            "T",
+            "M",
+            "T",
+            "T"
+          ],
+          "Mary": [
+            "T",
+            "M",
+            "T",
+            "M",
+            "M"
+          ],
+          "Veronica": [
+            "T",
+            "M",
+            "T",
+            "M",
+            "T"
+          ],
+          "Matias": [
+            "I",
+            "I",
+            "I",
+            "I",
+            "I"
+          ]
+        },
+        "2026-10": {
+          "Victor": [
+            "T",
+            "M",
+            "T",
+            "M",
+            "T"
+          ],
+          "Mary": [
             "M",
             "T",
             "M",
             "T",
             "M"
           ],
-          "Valentina": [
+          "Veronica": [
             "T",
             "M",
             "T",
             "M",
             "T"
           ],
-          "Tomás": [
-            "T",
-            "M",
-            "T",
-            "M",
-            "T"
-          ],
-          "Sofía": [
+          "Matias": [
             "I",
             "I",
             "I",
@@ -164,38 +270,65 @@
         }
       },
       "dias_libres": {
-        "Diego": "martes",
-        "Valentina": "miércoles",
-        "Tomás": "jueves",
         "EDU": "lunes",
-        "Sofía": "viernes",
-        "Angelica": "lunes"
+        "Angelica": "lunes",
+        "Victor": "martes",
+        "Mary": "miércoles",
+        "Veronica": "martes",
+        "Matias": "lunes"
       },
       "turnos_semanales": {
         "2026-08-31": {
           "EDU": "M",
-          "Sofía": "I",
-          "Angelica": "M"
+          "Angelica": "M",
+          "Matias": "I"
         },
         "2026-09-07": {
           "EDU": "T",
-          "Sofía": "I",
-          "Angelica": "T"
+          "Angelica": "T",
+          "Matias": "I"
         },
         "2026-09-14": {
           "EDU": "M",
-          "Sofía": "I",
-          "Angelica": "M"
+          "Angelica": "M",
+          "Matias": "I"
         },
         "2026-09-21": {
           "EDU": "T",
-          "Sofía": "I",
-          "Angelica": "T"
+          "Angelica": "T",
+          "Matias": "I"
         },
         "2026-09-28": {
           "EDU": "M",
-          "Sofía": "I",
-          "Angelica": "M"
+          "Angelica": "M",
+          "Victor": "T",
+          "Mary": "M",
+          "Veronica": "T",
+          "Matias": "I"
+        },
+        "2026-10-05": {
+          "Victor": "M",
+          "Mary": "T",
+          "Veronica": "M",
+          "Matias": "I"
+        },
+        "2026-10-12": {
+          "Victor": "T",
+          "Mary": "M",
+          "Veronica": "T",
+          "Matias": "I"
+        },
+        "2026-10-19": {
+          "Victor": "M",
+          "Mary": "T",
+          "Veronica": "M",
+          "Matias": "I"
+        },
+        "2026-10-26": {
+          "Victor": "T",
+          "Mary": "M",
+          "Veronica": "T",
+          "Matias": "I"
         }
       },
       "cobertura": {
@@ -205,12 +338,12 @@
       },
       "desfase": 1,
       "domingo_grupo": {
-        "Diego": 1,
-        "Valentina": 0,
-        "Tomás": 1,
         "EDU": 0,
-        "Sofía": 0,
-        "Angelica": 1
+        "Angelica": 1,
+        "Victor": 1,
+        "Mary": 0,
+        "Veronica": 1,
+        "Matias": 0
       },
       "encargados": {
         "EDU": [
@@ -225,73 +358,190 @@
           "2026-09-10",
           "2026-09-17",
           "2026-09-24"
+        ],
+        "Mary": [],
+        "Veronica": [
+          "2026-10-07",
+          "2026-10-14",
+          "2026-10-21",
+          "2026-10-28"
         ]
+      },
+      "jornadas": {
+        "Victor": {
+          "tipo": "full_time"
+        },
+        "Mary": {
+          "tipo": "full_time"
+        },
+        "Veronica": {
+          "tipo": "full_time"
+        },
+        "Matias": {
+          "tipo": "full_time"
+        }
+      },
+      "cobertura_domingo": {
+        "M": 1,
+        "T": 1,
+        "I": 0
       }
     },
     "Garzones": {
       "empleados": [
-        "Camila",
-        "Matías",
-        "Javiera",
-        "Nicolás",
-        "Daniela",
-        "Felipe"
+        "Josefa",
+        "Cristofer",
+        "Cazydi",
+        "Yoli",
+        "Luciano",
+        "Julio",
+        "Misael"
       ],
       "turnos_por_mes": {
         "2026-09": {
-          "Camila": [
+          "Josefa": [
             "M",
             "T",
             "M",
             "T",
             "M"
           ],
-          "Matías": [
+          "Cristofer": [
+            "M",
+            "T",
+            "M",
+            "T",
+            "T"
+          ],
+          "Luciano": [
+            "T",
+            "M",
+            "T",
+            "M",
+            "M"
+          ],
+          "Julio": [
+            "T",
+            "M",
+            "T",
+            "M",
+            "T"
+          ],
+          "Yoli": [
+            "T",
+            "M",
+            "T",
+            "M",
+            "T"
+          ],
+          "Cazydi": [
+            "M",
+            "T",
+            "M",
+            "T",
+            "M"
+          ]
+        },
+        "2026-10": {
+          "Josefa": [
             "M",
             "T",
             "M",
             "T",
             "M"
           ],
-          "Javiera": [
+          "Cristofer": [
+            "T",
+            "M",
+            "T",
+            "M",
+            "T"
+          ],
+          "Luciano": [
             "M",
             "T",
             "M",
             "T",
             "M"
           ],
-          "Nicolás": [
+          "Julio": [
             "T",
             "M",
             "T",
             "M",
             "T"
           ],
-          "Daniela": [
+          "Yoli": [
             "T",
             "M",
             "T",
             "M",
             "T"
           ],
-          "Felipe": [
-            "T",
+          "Cazydi": [
             "M",
             "T",
             "M",
-            "T"
+            "T",
+            "M"
           ]
         }
       },
       "dias_libres": {
-        "Camila": "lunes",
-        "Matías": "martes",
-        "Javiera": "miércoles",
-        "Nicolás": "jueves",
-        "Daniela": "viernes",
-        "Felipe": "sábado"
+        "Josefa": "lunes",
+        "Cristofer": "martes",
+        "Luciano": "viernes",
+        "Julio": "jueves",
+        "Yoli": "martes",
+        "Cazydi": "martes"
       },
-      "turnos_semanales": {},
+      "turnos_semanales": {
+        "2026-09-28": {
+          "Misael": "T",
+          "Josefa": "M",
+          "Cristofer": "T",
+          "Luciano": "M",
+          "Julio": "T",
+          "Yoli": "T",
+          "Cazydi": "M"
+        },
+        "2026-10-05": {
+          "Misael": "T",
+          "Josefa": "T",
+          "Cristofer": "M",
+          "Luciano": "T",
+          "Julio": "M",
+          "Yoli": "M",
+          "Cazydi": "T"
+        },
+        "2026-10-12": {
+          "Misael": "T",
+          "Josefa": "M",
+          "Cristofer": "T",
+          "Luciano": "M",
+          "Julio": "T",
+          "Yoli": "T",
+          "Cazydi": "M"
+        },
+        "2026-10-19": {
+          "Misael": "T",
+          "Josefa": "T",
+          "Cristofer": "M",
+          "Luciano": "T",
+          "Julio": "M",
+          "Yoli": "M",
+          "Cazydi": "T"
+        },
+        "2026-10-26": {
+          "Misael": "T",
+          "Josefa": "M",
+          "Cristofer": "T",
+          "Luciano": "M",
+          "Julio": "T",
+          "Yoli": "T",
+          "Cazydi": "M"
+        }
+      },
       "cobertura": {
         "M": 2,
         "T": 2,
@@ -302,7 +552,48 @@
         "T": 1,
         "I": 0
       },
-      "desfase": 2
+      "desfase": 2,
+      "domingo_grupo": {
+        "Misael": 0,
+        "Josefa": 0,
+        "Cristofer": 1,
+        "Luciano": 0,
+        "Julio": 1,
+        "Yoli": 1,
+        "Cazydi": 1
+      },
+      "jornadas": {
+        "Misael": {
+          "tipo": "part_time_30",
+          "dias": [
+            1,
+            2,
+            5,
+            6
+          ]
+        },
+        "Josefa": {
+          "tipo": "full_time"
+        },
+        "Cristofer": {
+          "tipo": "full_time"
+        },
+        "Luciano": {
+          "tipo": "full_time"
+        },
+        "Julio": {
+          "tipo": "full_time"
+        },
+        "Yoli": {
+          "tipo": "full_time"
+        },
+        "Cazydi": {
+          "tipo": "full_time"
+        }
+      },
+      "encargados": {
+        "Yoli": []
+      }
     }
   },
   "turnos_detalle": {

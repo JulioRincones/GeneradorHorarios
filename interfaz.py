@@ -12,7 +12,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from horarios import (AREAS, BASE, DIAS_COMPLETOS, MESES, exportar, generar_mes,
                       selecciones_del_area, validar, descansos_encargados, numero_dia, descripcion_turno,
-                      horario_del_dia, validar_detalle_turno, evaluar_cobertura, validar_jornadas)
+                      horario_del_dia, validar_detalle_turno, evaluar_cobertura, validar_jornadas, turno_rotacion_mensual, seleccion_para_fecha)
 
 
 def lunes_del_mes(mes):
@@ -41,7 +41,7 @@ def guardar_turno(config, codigo, nombre, dias, reduccion, existente=False):
 
 
 def guardar_persona(config, area_nombre, anterior, nombre, libre, grupo, mes, turnos,
-                    encargado=None, adicionales=None, jornada=None):
+                    encargado=None, adicionales=None, jornada=None, domingo_turno=None):
     """Devuelve una copia editada sin perder otros meses ni grupos dominicales."""
     nuevo = copy.deepcopy(config)
     area = nuevo["areas"][area_nombre]
@@ -55,7 +55,7 @@ def guardar_persona(config, area_nombre, anterior, nombre, libre, grupo, mes, tu
         grupos.setdefault(persona, i % 2)
     if anterior:
         area["empleados"][area["empleados"].index(anterior)] = nombre
-        mapas = [area["dias_libres"], grupos, area.setdefault("encargados", {}), area.setdefault("jornadas", {})]
+        mapas = [area["dias_libres"], grupos, area.setdefault("encargados", {}), area.setdefault("jornadas", {}), area.setdefault("domingo_turno", {})]
         mapas += list(area.get("turnos_semanales", {}).values())
         mapas += list(area.get("turnos_por_mes", {}).values())
         for mapa in mapas:
@@ -65,6 +65,13 @@ def guardar_persona(config, area_nombre, anterior, nombre, libre, grupo, mes, tu
         area["empleados"].append(nombre)
     area["dias_libres"][nombre] = libre
     grupos[nombre] = grupo
+    if domingo_turno is not None:
+        if domingo_turno == "":
+            area.setdefault("domingo_turno", {}).pop(nombre, None)
+        elif domingo_turno in ("M", "T") and domingo_turno in nuevo["turnos"]:
+            area.setdefault("domingo_turno", {})[nombre] = domingo_turno
+        else:
+            raise ValueError("El turno del domingo debe ser mañana o tarde.")
     if jornada is not None:
         area.setdefault("jornadas", {})[nombre] = copy.deepcopy(jornada)
     if area.get("jornadas", {}).get(nombre, {}).get("tipo", "full_time") != "full_time":
@@ -93,6 +100,9 @@ def guardar_persona(config, area_nombre, anterior, nombre, libre, grupo, mes, tu
             asignaciones.pop(nombre, None)
         else:
             asignaciones[nombre] = turno
+    if (nuevo.get("rotacion_mensual", False) and all(t is not None for t in turnos)
+            and area.get("jornadas", {}).get(nombre, {}).get("tipo", "full_time") == "full_time"):
+        area.setdefault("turnos_por_mes", {}).setdefault(f"{mes:%Y-%m}", {})[nombre] = list(turnos)
     return nuevo
 
 
@@ -247,8 +257,11 @@ class Aplicacion(ttk.Frame):
                 etiqueta += {"full_time": "", "part_time_30": " · PT30", "part_time_20": " · PT20"}[tipo]
                 libre = area["dias_libres"].get(persona, "").capitalize() if tipo == "full_time" else "Según días elegidos"
                 domingos = f"Grupo {area.get('domingo_grupo', {}).get(persona, i % 2)+1}" if tipo == "full_time" else ("Trabaja" if 6 in jornada["dias"] else "Libre")
+                if tipo != "part_time_20" and persona in area.get("domingo_turno", {}):
+                    domingos += f" · {area['domingo_turno'][persona]}"
                 valores = [etiqueta, libre, domingos]
-                valores += ["10 h 30 min" if tipo == "part_time_20" else seleccion.get(d.isoformat(), {}).get(persona, "Automático") for d in semanas]
+                valores += ["10 h 30 min" if tipo == "part_time_20" else (
+                    seleccion_para_fecha(self.config, area, seleccion, persona, max(d, self.mes)) or "Sin selección") for d in semanas]
                 tabla.insert("", "end", iid=str(i), values=valores)
         self.programar_alertas()
 
@@ -288,12 +301,16 @@ class Aplicacion(ttk.Frame):
         origen = date.fromisoformat(self.config["inicio_rotacion"])
         domingo = origen + timedelta(days=6-origen.weekday())
         ttk.Label(marco, text=f"Grupo 1: libre el {domingo:%d/%m/%Y} y cada 14 días.\nGrupo 2: libre el {domingo+timedelta(days=7):%d/%m/%Y} y cada 14 días.").grid(row=3, columnspan=2, sticky="w", pady=10)
-        opciones = {"Automático": None, **{f"{k} · {v.split(' · ')[0]} · según día": k for k, v in self.config["turnos"].items()}}
+        opciones = {f"{k} · {v.split(' · ')[0]} · según día": k for k, v in self.config["turnos"].items()}
         seleccion = selecciones_del_area(nombre, area, self.config["turnos"])
         variables = []
         controles_turnos = []
         for i, lunes in enumerate(lunes_del_mes(self.mes)):
-            turno = seleccion.get(lunes.isoformat(), {}).get(anterior)
+            por_defecto = "M" if (i + int(grupo.get()[-1])-1) % 2 == 0 else "T"
+            if area.get("jornadas", {}).get(anterior, {}).get("tipo", "full_time") != "full_time":
+                por_defecto = next(iter(self.config["turnos"]))
+            turno = (seleccion_para_fecha(self.config, area, seleccion, anterior, max(lunes, self.mes))
+                     if anterior else None) or por_defecto
             variable = tk.StringVar(value=next(k for k, v in opciones.items() if v == turno))
             variables.append(variable)
             ttk.Label(marco, text=f"Semana {i+1}: {lunes:%d/%m} – {lunes+timedelta(days=6):%d/%m}").grid(row=4+i, column=0, sticky="w", pady=5)
@@ -407,10 +424,19 @@ class Aplicacion(ttk.Frame):
             salidas_pt.append(salida)
         ayuda_jornada = tk.StringVar()
         ttk.Label(panel_jornada, textvariable=ayuda_jornada, wraplength=255).grid(row=9, columnspan=3, sticky="w", pady=12)
+        opciones_domingo = {"Turno de la semana": "", "Mañana": "M", "Tarde": "T"}
+        domingo_var = tk.StringVar(value=next(k for k, v in opciones_domingo.items()
+                                              if v == area.get("domingo_turno", {}).get(anterior, "")))
+        ttk.Label(panel_jornada, text="Turno del domingo trabajado").grid(row=10, columnspan=3, sticky="w", pady=(10, 4))
+        selector_domingo = ttk.Combobox(panel_jornada, textvariable=domingo_var,
+                                       values=list(opciones_domingo), state="readonly", width=23)
+        selector_domingo.grid(row=11, columnspan=3, sticky="ew")
+        ttk.Label(panel_jornada, text="No cambia los domingos libres. En PT20 se conserva la entrada elegida.", wraplength=255).grid(row=12, columnspan=3, sticky="w", pady=8)
 
         def actualizar_jornada(*_):
             tipo = tipos[tipo_var.get()]
             full = tipo == "full_time"
+            selector_domingo.configure(state="disabled" if tipo == "part_time_20" else "readonly")
             for c in controles_full:
                 c.configure(state="readonly" if full else "disabled")
             check_encargado.configure(state="normal" if full else "disabled")
@@ -447,7 +473,8 @@ class Aplicacion(ttk.Frame):
                     jornada["entradas"] = {str(i): entradas_pt[i].get().strip() for i in jornada["dias"]}
                 self.config = guardar_persona(self.config, nombre, anterior, persona.get(), libre.get(),
                                                int(grupo.get()[-1])-1, self.mes, [opciones[v.get()] for v in variables],
-                                               encargado=encargado.get(), adicionales=adicionales, jornada=jornada)
+                                               encargado=encargado.get(), adicionales=adicionales, jornada=jornada,
+                                               domingo_turno=opciones_domingo[domingo_var.get()])
                 self.marcar()
                 self.refrescar()
                 ventana.destroy()
@@ -468,7 +495,7 @@ class Aplicacion(ttk.Frame):
         for i, e in enumerate(area["empleados"]):
             grupos.setdefault(e, i % 2)
         area["empleados"].remove(persona)
-        for mapa in [area["dias_libres"], grupos, area.get("encargados", {}), area.get("jornadas", {})] + list(area.get("turnos_semanales", {}).values()) + list(area.get("turnos_por_mes", {}).values()):
+        for mapa in [area["dias_libres"], grupos, area.get("encargados", {}), area.get("jornadas", {}), area.get("domingo_turno", {})] + list(area.get("turnos_semanales", {}).values()) + list(area.get("turnos_por_mes", {}).values()):
             mapa.pop(persona, None)
         self.marcar()
         self.refrescar()

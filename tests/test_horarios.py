@@ -15,6 +15,7 @@ class HorariosTest(unittest.TestCase):
         self.config = json.loads((BASE / "configuracion.json").read_text(encoding="utf-8"))
         self.config["turnos"] = {"M": "Mañana · 09:00 a 17:00", "T": "Tarde · 16:00 a 00:00", "I": "Intermedio · 13:00 a 19:00"}
         self.config.pop("turnos_detalle", None)
+        self.config.pop("rotacion_mensual", None)
         for area in self.config["areas"].values():
             area.pop("turnos_por_mes", None)
         # Los casos unitarios no dependen de personas añadidas desde la interfaz.
@@ -24,6 +25,8 @@ class HorariosTest(unittest.TestCase):
             "cobertura": {"M": 1, "T": 1, "I": 0}, "desfase": 0,
         }
         self.inicio = date(2026, 9, 28)
+        for nombre in ("Barra", "Garzones"):
+            self.config["areas"][nombre] = json.loads(json.dumps(self.config["areas"]["Cocina"]))
 
     def test_reduccion_horaria_por_tipo(self):
         fechas = [self.inicio + timedelta(days=i) for i in range(7)]
@@ -76,7 +79,12 @@ class HorariosTest(unittest.TestCase):
                                  [(t.descripcion, t.minutos, t.horas_semana) for t in separados])
 
     def test_ejemplo_mensual_turnos_fijos_y_descansos(self):
-        config = json.loads((BASE / "configuracion.json").read_text(encoding="utf-8"))
+        config = json.loads(json.dumps(self.config))
+        for area in config["areas"].values():
+            area["turnos_por_mes"] = {"2026-09": {
+                "Ana": ["M", "T", "M", "T", "M"], "Luis": ["M", "T", "M", "T", "M"],
+                "Carla": ["T", "M", "T", "M", "T"], "Pedro": ["T", "M", "T", "M", "T"]}}
+        config.pop("rotacion_mensual", None)
         fechas, resultado = generar(config, date(2026, 8, 31), 5)
         for nombre, area in config["areas"].items():
             for persona, lista in area["turnos_por_mes"]["2026-09"].items():
@@ -144,6 +152,8 @@ class HorariosTest(unittest.TestCase):
         for nombre, empleados in resultado.items():
             area = self.config["areas"][nombre]
             for persona, turnos in empleados.items():
+                if area.get("jornadas", {}).get(persona, {}).get("tipo", "full_time") != "full_time":
+                    continue
                 domingos = []
                 for inicio in range(0, 56, 7):
                     semana = turnos[inicio:inicio+7]

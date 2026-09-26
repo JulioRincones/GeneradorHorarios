@@ -2,7 +2,7 @@ import copy
 import unittest
 from datetime import date, timedelta
 
-from horarios import generar, generar_mes, evaluar_cobertura
+from horarios import generar, generar_mes, evaluar_cobertura, turno_rotacion_mensual
 from interfaz import guardar_persona
 
 
@@ -30,6 +30,66 @@ class JornadasTest(unittest.TestCase):
             self.assertEqual(turnos[i].horas_semana, 32)
         self.assertEqual(turnos[6].minutos, 480)
         self.assertEqual(turnos[13].minutos, 480)
+
+    def test_domingo_independiente_respeta_libres(self):
+        self.config["rotacion_mensual"] = True
+        area = self.config["areas"]["Cocina"]
+        area["domingo_turno"] = {"A": "T", "B": "M"}
+        fechas, resultado = generar(self.config, self.inicio, 2, diagnostico=True)
+        self.assertEqual(resultado["Cocina"]["A"][6], "LIBRE")
+        self.assertEqual(resultado["Cocina"]["A"][13], "T")
+        self.assertIn("14:00 a 22:00", resultado["Cocina"]["A"][13].descripcion)
+        self.assertEqual(resultado["Cocina"]["B"][6], "M")
+        self.assertEqual(resultado["Cocina"]["B"][13], "LIBRE")
+        self.assertEqual(resultado["Cocina"]["B"][0], "T")
+
+    def test_domingo_pt30_y_pt20(self):
+        self.agregar({"tipo": "part_time_30", "dias": [0, 2, 5, 6]})
+        self.config["areas"]["Cocina"]["domingo_turno"] = {"PT": "T"}
+        _, resultado = generar(self.config, self.inicio, 2)
+        self.assertEqual(resultado["Cocina"]["PT"][6], "T")
+        self.assertEqual(resultado["Cocina"]["PT"][13], "T")
+        self.config["areas"]["Cocina"]["jornadas"]["PT"] = {
+            "tipo": "part_time_20", "dias": [5, 6], "entradas": {"5": "09:00", "6": "08:00"}}
+        _, resultado = generar(self.config, self.inicio, 2)
+        self.assertIn("08:00 a 18:30", resultado["Cocina"]["PT"][6].descripcion)
+
+    def test_guardar_renombrar_y_quitar_turno_domingo(self):
+        config = guardar_persona(self.config, "Cocina", "A", "Ana", "lunes", 0,
+                                  self.inicio, ["M"]*5, domingo_turno="T")
+        self.assertEqual(config["areas"]["Cocina"]["domingo_turno"], {"Ana": "T"})
+        config = guardar_persona(config, "Cocina", "Ana", "Otra", "lunes", 0,
+                                  self.inicio, ["M"]*5)
+        self.assertEqual(config["areas"]["Cocina"]["domingo_turno"], {"Otra": "T"})
+        config = guardar_persona(config, "Cocina", "Otra", "Otra", "lunes", 0,
+                                  self.inicio, ["M"]*5, domingo_turno="")
+        self.assertEqual(config["areas"]["Cocina"]["domingo_turno"], {})
+
+    def test_rotacion_mensual_y_part_time_sin_cambios(self):
+        self.agregar({"tipo": "part_time_30", "dias": [0, 2, 5, 6]})
+        for i in range(3):
+            lunes = (self.inicio + timedelta(weeks=i)).isoformat()
+            self.config["areas"]["Cocina"]["turnos_semanales"].setdefault(lunes, {})["PT"] = "M"
+        _, antes = generar(self.config, self.inicio, 3)
+        self.config["rotacion_mensual"] = True
+        fechas, despues = generar(self.config, self.inicio, 3, diagnostico=True)
+        self.assertEqual([t.descripcion for t in antes["Cocina"]["PT"]],
+                         [t.descripcion for t in despues["Cocina"]["PT"]])
+        area = self.config["areas"]["Cocina"]
+        for persona in ("A", "B", "C", "D"):
+            for dia, turno in zip(fechas, despues["Cocina"][persona]):
+                if turno != "LIBRE":
+                    self.assertEqual(turno, turno_rotacion_mensual(area, persona, dia))
+        self.assertEqual(turno_rotacion_mensual(area, "A", date(2026, 10, 1)), "M")
+        self.assertEqual(turno_rotacion_mensual(area, "B", date(2026, 10, 1)), "T")
+        self.assertEqual(turno_rotacion_mensual(area, "A", date(2026, 10, 5)), "T")
+
+    def test_eleccion_manual_primera_semana_del_mes(self):
+        self.config["rotacion_mensual"] = True
+        config = guardar_persona(self.config, "Cocina", "A", "A", "lunes", 0,
+                                  date(2026, 10, 1), ["T"]*5)
+        fechas, resultado = generar(config, date(2026, 10, 1), 1, diagnostico=True)
+        self.assertTrue(all(t in ("T", "LIBRE") for t in resultado["Cocina"]["A"]))
 
     def test_pt20_dos_dias_y_cruce_medianoche(self):
         self.agregar({"tipo": "part_time_20", "dias": [5, 6], "entradas": {"5": "20:00", "6": "10:30"}})

@@ -34,7 +34,7 @@ compatibilidad, pero Windows puede mostrar brevemente CMD al ejecutar un `.bat`.
 - Las pestañas separan Cocina, Barra y Garzones.
 - Haz doble clic en una persona para editar su nombre, día libre, grupo de
   domingos y turno de cada semana. Las fechas de cada semana aparecen junto
-  al selector. `Automático` permite que el programa distribuya turnos por día.
+  al selector. Elige un turno concreto para cada semana.
 - **Agregar persona** y **Eliminar** actualizan también las asignaciones guardadas.
 - **Cobertura mínima** permite ajustar por separado lunes a sábado y domingos.
 - **Guardar cambios** (Ctrl+S) conserva la configuración para futuras sesiones.
@@ -131,6 +131,33 @@ del código, incluidos otros meses, sin cambiar la selección de cada trabajador
 El código existente no se renombra. Los horarios editados por día reemplazan las
 variaciones predeterminadas de mañana y tarde. El límite de 45 horas sigue vigente.
 
+## Rotación al cambiar de mes
+
+### Turno del domingo trabajado
+
+Al crear o editar una persona, el selector **Turno del domingo trabajado** permite
+elegir **Mañana**, **Tarde** o **Turno de la semana**. Se aplica a todos sus domingos
+trabajados, sin cambiar los domingos libres ni los turnos de lunes a sábado.
+La selección tiene prioridad sobre la rotación mensual y el turno semanal.
+Usa las horas dominicales del turno, incluidas las ediciones de Administrar turnos.
+
+También está disponible para part time de 30 h si trabaja domingo. Para part time
+de 20 h está deshabilitada, pues se conserva su entrada personalizada y duración
+de 10 h 30 min. Guarda los cambios para conservar la elección; el panel de alertas
+se actualiza al aplicarla. En JSON se guarda como `"domingo_turno": {"Ana": "M"}`.
+
+La opción «Automático» ya no aparece en el editor de personas. Para full time,
+las semanas sin elección manual del mes usan el grupo dominical: grupo 1 empieza
+con mañana y sigue tarde, mañana…; grupo 2 empieza tarde y sigue mañana, tarde…
+La semana 1 es la primera fila del calendario, aunque sea parcial. La rotación
+se reinicia el día 1 de cada mes y no modifica la alternancia de domingos libres.
+Una semana que cruza de mes puede cambiar de turno al comenzar el nuevo mes.
+Las selecciones manuales del mes se conservan. Puedes editar los turnos propuestos.
+
+La regla no cambia los part time: conservan sus días y horarios. Un part time
+de 30 h sin selección se muestra como «Sin selección»; al editarlo, elige sus
+turnos semanales. Las alertas siguen evaluando los huecos que cause la rotación.
+
 ## Tipos de jornada
 
 Al crear o editar una persona, el panel **Tipo de jornada** permite elegir:
@@ -206,7 +233,7 @@ cuando compartan una semana. El programa rechaza selecciones contradictorias.
 
 La configuración incluida ya trae septiembre de 2026 para todos los trabajadores.
 Agrega otros meses y personas con el mismo formato. Las personas o semanas sin
-selección usan asignación automática, que puede cambiar de turno entre días.
+selección full time usan la rotación mensual según su grupo de domingos.
 
 También se mantiene la opción `turnos_semanales` por fecha exacta del lunes:
 
@@ -219,7 +246,7 @@ También se mantiene la opción `turnos_semanales` por fecha exacta del lunes:
 
 La persona tendrá ese turno salvo su día fijo y el domingo que le toque descansar.
 Quienes no tengan selección completan los mínimos y también reciben turno en los
-días restantes. Usa `{}` para mantener la asignación automática.
+días restantes. Para full time, `{}` activa la rotación mensual por grupo.
 Las selecciones no se repiten en semanas futuras: agrega el lunes de cada semana.
 
 La cobertura indica cantidades **mínimas**, que pueden superarse. Puedes elegir
