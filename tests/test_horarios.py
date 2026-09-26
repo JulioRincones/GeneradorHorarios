@@ -101,6 +101,38 @@ class HorariosTest(unittest.TestCase):
             for persona, turnos in empleados.items():
                 self.assertEqual(turnos, completo[area][persona][14:])
 
+    def test_encargado_adicional_sin_cambiar_domingos(self):
+        _, anterior = generar(self.config, self.inicio, 2)
+        self.config["areas"]["Cocina"]["encargados"] = {"Ana": ["2026-09-30", "2026-10-09"]}
+        fechas, resultado = generar(self.config, self.inicio, 2)
+        turnos = resultado["Cocina"]["Ana"]
+        self.assertEqual(turnos[:6].count("LIBRE"), 2)
+        self.assertEqual(turnos[7:13].count("LIBRE"), 2)
+        self.assertEqual(turnos[6], anterior["Cocina"]["Ana"][6])
+        self.assertEqual(turnos[13], anterior["Cocina"]["Ana"][13])
+        self.assertEqual(turnos[2], "LIBRE")
+        self.assertEqual(turnos[11], "LIBRE")
+        _, octubre = generar_mes(self.config, date(2026, 10, 1))
+        self.assertEqual(octubre["Cocina"]["Ana"][:11], turnos[3:])
+        contenido, _ = hoja(self.config, "Cocina", fechas, resultado["Cocina"])
+        self.assertIn("30\nLIBRE", contenido.decode("utf-8"))
+
+    def test_encargado_descansos_invalidos(self):
+        for extras in (["2026-10-04"], ["2026-09-28"], ["2026-09-30", "2026-10-01"],
+                       ["2026-09-30", "2026-09-30"], ["invalida"]):
+            with self.subTest(extras=extras):
+                self.config["areas"]["Cocina"]["encargados"] = {"Ana": extras}
+                with self.assertRaises(ValueError):
+                    generar(self.config, self.inicio, 2)
+
+    def test_adicional_respeta_cobertura(self):
+        area = self.config["areas"]["Cocina"]
+        area["cobertura"]["M"] = 2
+        area["cobertura_domingo"] = {"M": 1, "T": 1}
+        area["encargados"] = {"Ana": ["2026-09-30"]}
+        with self.assertRaisesRegex(ValueError, "no se puede cubrir"):
+            generar(self.config, self.inicio, 1)
+
     def test_grupos_dominicales_y_configuracion_obligatoria(self):
         area = self.config["areas"]["Cocina"]
         area["domingo_grupo"] = {"Ana": 1, "Luis": 0, "Carla": 1, "Pedro": 0}

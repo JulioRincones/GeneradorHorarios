@@ -10,7 +10,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from horarios import (AREAS, BASE, DIAS_COMPLETOS, MESES, exportar, generar_mes,
-                      selecciones_del_area, validar)
+                      selecciones_del_area, validar, descansos_encargados, numero_dia)
 
 
 def lunes_del_mes(mes):
@@ -20,7 +20,8 @@ def lunes_del_mes(mes):
     return [lunes + timedelta(weeks=i) for i in range(cantidad)]
 
 
-def guardar_persona(config, area_nombre, anterior, nombre, libre, grupo, mes, turnos):
+def guardar_persona(config, area_nombre, anterior, nombre, libre, grupo, mes, turnos,
+                    encargado=None, adicionales=None):
     """Devuelve una copia editada sin perder otros meses ni grupos dominicales."""
     nuevo = copy.deepcopy(config)
     area = nuevo["areas"][area_nombre]
@@ -34,7 +35,7 @@ def guardar_persona(config, area_nombre, anterior, nombre, libre, grupo, mes, tu
         grupos.setdefault(persona, i % 2)
     if anterior:
         area["empleados"][area["empleados"].index(anterior)] = nombre
-        mapas = [area["dias_libres"], grupos]
+        mapas = [area["dias_libres"], grupos, area.setdefault("encargados", {})]
         mapas += list(area.get("turnos_semanales", {}).values())
         mapas += list(area.get("turnos_por_mes", {}).values())
         for mapa in mapas:
@@ -44,6 +45,11 @@ def guardar_persona(config, area_nombre, anterior, nombre, libre, grupo, mes, tu
         area["empleados"].append(nombre)
     area["dias_libres"][nombre] = libre
     grupos[nombre] = grupo
+    if encargado is True:
+        area.setdefault("encargados", {})[nombre] = sorted(adicionales or [])
+    elif encargado is False:
+        area.setdefault("encargados", {}).pop(nombre, None)
+    descansos_encargados(area)
     for lunes, turno in zip(lunes_del_mes(mes), turnos):
         # Una semana compartida entre meses siempre representa una sola elección.
         for clave, personas in area.get("turnos_por_mes", {}).items():
@@ -162,7 +168,8 @@ class Aplicacion(ttk.Frame):
                 tabla.column(columna, width=150 if columna == "persona" else 115, minwidth=100)
             tabla.delete(*tabla.get_children())
             for i, persona in enumerate(area["empleados"]):
-                valores = [persona, area["dias_libres"][persona].capitalize(), f"Grupo {area.get('domingo_grupo', {}).get(persona, i % 2)+1}"]
+                etiqueta = persona + (" · Encargado" if persona in area.get("encargados", {}) else "")
+                valores = [etiqueta, area["dias_libres"][persona].capitalize(), f"Grupo {area.get('domingo_grupo', {}).get(persona, i % 2)+1}"]
                 valores += [seleccion.get(d.isoformat(), {}).get(persona, "Automático") for d in semanas]
                 tabla.insert("", "end", iid=str(i), values=valores)
 
@@ -209,12 +216,90 @@ class Aplicacion(ttk.Frame):
             ttk.Label(marco, text=f"Semana {i+1}: {lunes:%d/%m} – {lunes+timedelta(days=6):%d/%m}").grid(row=4+i, column=0, sticky="w", pady=5)
             ttk.Combobox(marco, textvariable=variable, values=list(opciones), state="readonly", width=36).grid(row=4+i, column=1)
         fila = 4 + len(variables)
+        encargado = tk.BooleanVar(value=anterior in area.get("encargados", {}))
+        adicionales = set(area.get("encargados", {}).get(anterior, []))
+        resumen = tk.StringVar(value=f"{len(adicionales)} descansos adicionales seleccionados")
+        ttk.Checkbutton(marco, text="Encargado de turno", variable=encargado,
+                        command=lambda: boton_calendario.configure(state="normal" if encargado.get() else "disabled")).grid(row=fila, column=0, sticky="w", pady=10)
+
+        def calendario():
+            popup = tk.Toplevel(ventana)
+            popup.title("Días libres adicionales · Encargado")
+            popup.transient(ventana)
+            popup.grab_set()
+            panel = ttk.Frame(popup, padding=16)
+            panel.pack()
+            actual = [self.mes]
+            borrador = set(adicionales)
+            titulo = tk.StringVar()
+            ttk.Label(panel, textvariable=titulo, font=("Segoe UI", 12, "bold")).grid(row=0, column=1, columnspan=5)
+            grilla = ttk.Frame(panel)
+            grilla.grid(row=1, column=0, columnspan=7, pady=12)
+
+            def pintar():
+                for widget in grilla.winfo_children():
+                    widget.destroy()
+                titulo.set(f"{MESES[actual[0].month-1]} {actual[0].year}")
+                for c, texto in enumerate(("Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom")):
+                    ttk.Label(grilla, text=texto).grid(row=0, column=c, padx=5)
+                for f, semana in enumerate(calendar.Calendar(0).monthdayscalendar(actual[0].year, actual[0].month), 1):
+                    for c, numero in enumerate(semana):
+                        if not numero:
+                            continue
+                        dia = actual[0].replace(day=numero)
+                        elegido = dia.isoformat() in borrador
+                        fijo = c == numero_dia(libre.get())
+                        texto = f"{numero}" + (" ✓" if elegido else " F" if fijo else "")
+                        ttk.Button(grilla, text=texto, width=5, command=lambda d=dia: alternar(d),
+                                   state="disabled" if c == 6 or (fijo and not elegido) else "normal").grid(row=f, column=c, padx=2, pady=2)
+
+            def alternar(dia):
+                clave = dia.isoformat()
+                if clave in borrador:
+                    borrador.remove(clave)
+                else:
+                    lunes = dia - timedelta(days=dia.weekday())
+                    if any((d := date.fromisoformat(v)) - timedelta(days=d.weekday()) == lunes for v in borrador):
+                        messagebox.showinfo("Un adicional por semana", "Desmarca el otro descanso de esta semana antes de elegir otro día.", parent=popup)
+                        return
+                    borrador.add(clave)
+                pintar()
+
+            def mover(delta):
+                indice = actual[0].year * 12 + actual[0].month - 1 + delta
+                if not 12 <= indice < 120000:
+                    return
+                actual[0] = date(indice // 12, indice % 12 + 1, 1)
+                pintar()
+
+            def cerrar(aceptar=False):
+                if aceptar:
+                    adicionales.clear()
+                    adicionales.update(borrador)
+                    resumen.set(f"{len(adicionales)} descansos adicionales seleccionados")
+                popup.destroy()
+                ventana.grab_set()
+
+            ttk.Button(panel, text="‹", command=lambda: mover(-1)).grid(row=0, column=0)
+            ttk.Button(panel, text="›", command=lambda: mover(1)).grid(row=0, column=6)
+            ttk.Label(panel, text="✓ Adicional seleccionado · F Día fijo\nMáximo uno adicional por semana. Domingos bloqueados.").grid(row=2, columnspan=7, pady=8)
+            ttk.Button(panel, text="Cancelar", command=cerrar).grid(row=3, column=0, columnspan=3)
+            ttk.Button(panel, text="Aceptar", command=lambda: cerrar(True)).grid(row=3, column=4, columnspan=3)
+            popup.protocol("WM_DELETE_WINDOW", cerrar)
+            pintar()
+
+        boton_calendario = ttk.Button(marco, text="Elegir días libres…", command=calendario,
+                                     state="normal" if encargado.get() else "disabled")
+        boton_calendario.grid(row=fila, column=1, sticky="e")
+        ttk.Label(marco, textvariable=resumen).grid(row=fila+1, columnspan=2, sticky="w")
+        fila += 2
         ttk.Label(marco, text="Las semanas compartidas se actualizan también en el mes vecino.").grid(row=fila, columnspan=2, pady=12)
 
         def aplicar():
             try:
                 self.config = guardar_persona(self.config, nombre, anterior, persona.get(), libre.get(),
-                                               int(grupo.get()[-1])-1, self.mes, [opciones[v.get()] for v in variables])
+                                               int(grupo.get()[-1])-1, self.mes, [opciones[v.get()] for v in variables],
+                                               encargado=encargado.get(), adicionales=adicionales)
                 self.marcar()
                 self.refrescar()
                 ventana.destroy()
@@ -235,7 +320,7 @@ class Aplicacion(ttk.Frame):
         for i, e in enumerate(area["empleados"]):
             grupos.setdefault(e, i % 2)
         area["empleados"].remove(persona)
-        for mapa in [area["dias_libres"], grupos] + list(area.get("turnos_semanales", {}).values()) + list(area.get("turnos_por_mes", {}).values()):
+        for mapa in [area["dias_libres"], grupos, area.get("encargados", {})] + list(area.get("turnos_semanales", {}).values()) + list(area.get("turnos_por_mes", {}).values()):
             mapa.pop(persona, None)
         self.marcar()
         self.refrescar()

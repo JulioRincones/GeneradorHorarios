@@ -92,6 +92,26 @@ cada domingo: se exige una de mañana y una de tarde, y la tercera también reci
 turno. Si no alcanza la dotación, el programa informa el conflicto sin modificar
 descansos ni generar el Excel.
 
+## Encargados de turno
+
+En **Agregar persona** o **Editar selección**, marca **Encargado de turno**.
+El botón **Elegir días libres…** abre un mini calendario con navegación por mes.
+Haz clic para seleccionar o quitar un descanso adicional: se indica con ✓.
+El día libre fijo aparece con F. Los domingos están bloqueados y mantienen su
+alternancia habitual. Puedes añadir como máximo un descanso adicional por semana
+de lunes a sábado, distinto del día fijo, también en semanas compartidas entre meses.
+
+Las fechas adicionales se eligen individualmente; no se repiten automáticamente.
+Pulsa **Aceptar**, **Aplicar cambios** y **Guardar cambios** para conservarlas.
+Al desmarcar **Encargado de turno** y aplicar, se eliminan sus descansos adicionales.
+Los encargados pueden tener dos descansos de lunes a sábado más su domingo libre
+cuando corresponda. Si falta personal para cubrir los turnos, la exportación
+informa el conflicto sin quitar descansos. En Excel se muestran como `LIBRE`.
+
+En la configuración, se guardan por área como
+`"encargados": {"Ana": ["2026-09-30", "2026-10-09"]}`.
+Una lista vacía identifica a un encargado que todavía no tiene días adicionales.
+
 ## Elegir turnos por semana
 
 Los tres turnos disponibles son `M` (mañana, 09:00 a 17:00), `T` (tarde,

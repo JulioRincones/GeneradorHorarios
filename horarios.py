@@ -87,6 +87,35 @@ def selecciones_del_area(nombre, area, turnos):
     return resultado
 
 
+def descansos_encargados(area):
+    encargados = area.get("encargados", {})
+    if not isinstance(encargados, dict):
+        raise ValueError("encargados debe asociar personas con fechas de descanso adicional.")
+    resultado = {}
+    for persona, fechas in encargados.items():
+        if persona not in area["empleados"] or not isinstance(fechas, list):
+            raise ValueError(f"Encargado o lista de descansos inválidos: {persona}.")
+        semanas = set()
+        resultado[persona] = set()
+        for valor in fechas:
+            try:
+                dia = date.fromisoformat(valor)
+                if dia.isoformat() != valor:
+                    raise ValueError
+            except (ValueError, TypeError):
+                raise ValueError(f"{persona}: fecha adicional inválida: {valor}.") from None
+            if dia.weekday() == 6:
+                raise ValueError(f"{persona}: no puedes seleccionar domingos como descanso adicional.")
+            if dia.weekday() == numero_dia(area["dias_libres"][persona]):
+                raise ValueError(f"{persona}: {valor} ya es su día libre fijo.")
+            lunes = dia - timedelta(days=dia.weekday())
+            if lunes in semanas:
+                raise ValueError(f"{persona}: solo se permite un día libre adicional por semana (lunes {lunes}).")
+            semanas.add(lunes)
+            resultado[persona].add(dia)
+    return resultado
+
+
 def validar(config):
     if not isinstance(config, dict):
         raise ValueError("La configuración debe ser un objeto JSON.")
@@ -138,6 +167,7 @@ def validar(config):
                 raise ValueError(f"{nombre}, {empleado}: {error}") from None
         if set(libres) != set(empleados) or 6 in dias_libres:
             raise ValueError(f"{nombre}: cada persona necesita un día libre fijo de lunes a sábado.")
+        descansos_encargados(area)
         grupos = area.get("domingo_grupo", {})
         if not isinstance(grupos, dict) or any(
             e not in empleados or type(g) is not int or g not in (0, 1) for e, g in grupos.items()
@@ -185,11 +215,13 @@ def generar(config, inicio, semanas, *, fin=None):
         origen_lunes = origen - timedelta(days=origen.weekday())
         activos = [t for t in config["turnos"] if area["cobertura"].get(t, 0) > 0]
         selecciones = selecciones_del_area(nombre, area, config["turnos"])
+        adicionales = descansos_encargados(area)
         for dia in fechas:
             semana = (dia - origen_lunes).days // 7
             ausentes = {
                 e for i, e in enumerate(empleados)
                 if (dia.weekday() < 6 and libres[e] == dia.weekday())
+                or dia in adicionales.get(e, set())
                 or (dia.weekday() == 6 and semana % 2 == area.get("domingo_grupo", {}).get(e, i % 2))
             }
             lunes = (dia - timedelta(days=dia.weekday())).isoformat()

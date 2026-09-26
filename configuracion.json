@@ -8,51 +8,209 @@
   },
   "areas": {
     "Cocina": {
-      "empleados": ["Ana", "Luis", "Carla", "Pedro"],
+      "empleados": [
+        "Ana",
+        "Luis",
+        "Carla",
+        "Pedro",
+        "Veronica"
+      ],
       "turnos_por_mes": {
         "2026-09": {
-          "Ana": ["M", "T", "M", "T", "M"],
-          "Luis": ["M", "T", "M", "T", "M"],
-          "Carla": ["T", "M", "T", "M", "T"],
-          "Pedro": ["T", "M", "T", "M", "T"]
+          "Ana": [
+            "M",
+            "T",
+            "M",
+            "T",
+            "M"
+          ],
+          "Luis": [
+            "M",
+            "T",
+            "M",
+            "T",
+            "M"
+          ],
+          "Carla": [
+            "T",
+            "M",
+            "T",
+            "M",
+            "T"
+          ],
+          "Pedro": [
+            "T",
+            "M",
+            "T",
+            "M",
+            "T"
+          ]
         }
       },
-      "dias_libres": {"Ana": "lunes", "Luis": "martes", "Carla": "miércoles", "Pedro": "jueves"},
-      "turnos_semanales": {},
-      "cobertura": {"M": 1, "T": 1, "I": 0},
-      "desfase": 0
+      "dias_libres": {
+        "Ana": "lunes",
+        "Luis": "martes",
+        "Carla": "miércoles",
+        "Pedro": "jueves",
+        "Veronica": "martes"
+      },
+      "turnos_semanales": {
+        "2026-08-31": {},
+        "2026-09-07": {},
+        "2026-09-14": {},
+        "2026-09-21": {},
+        "2026-09-28": {}
+      },
+      "cobertura": {
+        "M": 1,
+        "T": 1,
+        "I": 0
+      },
+      "desfase": 0,
+      "domingo_grupo": {
+        "Ana": 0,
+        "Luis": 1,
+        "Carla": 0,
+        "Pedro": 1,
+        "Veronica": 0
+      },
+      "encargados": {
+        "Veronica": [
+          "2026-09-02",
+          "2026-09-09",
+          "2026-09-16",
+          "2026-09-23",
+          "2026-09-30"
+        ]
+      }
     },
     "Barra": {
-      "empleados": ["Sofía", "Diego", "Valentina", "Tomás"],
+      "empleados": [
+        "Sofía",
+        "Diego",
+        "Valentina",
+        "Tomás"
+      ],
       "turnos_por_mes": {
         "2026-09": {
-          "Sofía": ["M", "T", "M", "T", "M"],
-          "Diego": ["M", "T", "M", "T", "M"],
-          "Valentina": ["T", "M", "T", "M", "T"],
-          "Tomás": ["T", "M", "T", "M", "T"]
+          "Sofía": [
+            "M",
+            "T",
+            "M",
+            "T",
+            "M"
+          ],
+          "Diego": [
+            "M",
+            "T",
+            "M",
+            "T",
+            "M"
+          ],
+          "Valentina": [
+            "T",
+            "M",
+            "T",
+            "M",
+            "T"
+          ],
+          "Tomás": [
+            "T",
+            "M",
+            "T",
+            "M",
+            "T"
+          ]
         }
       },
-      "dias_libres": {"Sofía": "lunes", "Diego": "martes", "Valentina": "miércoles", "Tomás": "jueves"},
+      "dias_libres": {
+        "Sofía": "lunes",
+        "Diego": "martes",
+        "Valentina": "miércoles",
+        "Tomás": "jueves"
+      },
       "turnos_semanales": {},
-      "cobertura": {"M": 1, "T": 1, "I": 0},
+      "cobertura": {
+        "M": 1,
+        "T": 1,
+        "I": 0
+      },
       "desfase": 1
     },
     "Garzones": {
-      "empleados": ["Camila", "Matías", "Javiera", "Nicolás", "Daniela", "Felipe"],
+      "empleados": [
+        "Camila",
+        "Matías",
+        "Javiera",
+        "Nicolás",
+        "Daniela",
+        "Felipe"
+      ],
       "turnos_por_mes": {
         "2026-09": {
-          "Camila": ["M", "T", "M", "T", "M"],
-          "Matías": ["M", "T", "M", "T", "M"],
-          "Javiera": ["M", "T", "M", "T", "M"],
-          "Nicolás": ["T", "M", "T", "M", "T"],
-          "Daniela": ["T", "M", "T", "M", "T"],
-          "Felipe": ["T", "M", "T", "M", "T"]
+          "Camila": [
+            "M",
+            "T",
+            "M",
+            "T",
+            "M"
+          ],
+          "Matías": [
+            "M",
+            "T",
+            "M",
+            "T",
+            "M"
+          ],
+          "Javiera": [
+            "M",
+            "T",
+            "M",
+            "T",
+            "M"
+          ],
+          "Nicolás": [
+            "T",
+            "M",
+            "T",
+            "M",
+            "T"
+          ],
+          "Daniela": [
+            "T",
+            "M",
+            "T",
+            "M",
+            "T"
+          ],
+          "Felipe": [
+            "T",
+            "M",
+            "T",
+            "M",
+            "T"
+          ]
         }
       },
-      "dias_libres": {"Camila": "lunes", "Matías": "martes", "Javiera": "miércoles", "Nicolás": "jueves", "Daniela": "viernes", "Felipe": "sábado"},
+      "dias_libres": {
+        "Camila": "lunes",
+        "Matías": "martes",
+        "Javiera": "miércoles",
+        "Nicolás": "jueves",
+        "Daniela": "viernes",
+        "Felipe": "sábado"
+      },
       "turnos_semanales": {},
-      "cobertura": {"M": 2, "T": 2, "I": 0},
-      "cobertura_domingo": {"M": 1, "T": 1, "I": 0},
+      "cobertura": {
+        "M": 2,
+        "T": 2,
+        "I": 0
+      },
+      "cobertura_domingo": {
+        "M": 1,
+        "T": 1,
+        "I": 0
+      },
       "desfase": 2
     }
   }

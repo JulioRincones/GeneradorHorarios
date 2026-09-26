@@ -42,6 +42,22 @@ class InterfazTest(unittest.TestCase):
         self.assertEqual(len(semanas), 6)
         self.assertEqual(semanas[0], date(2026, 2, 23))
 
+    def test_encargado_renombrado_y_desactivado(self):
+        nuevo = guardar_persona(self.config, "Cocina", "Ana", "Andrea", "lunes", 0,
+                                date(2026, 9, 1), ["M"] * 5,
+                                encargado=True, adicionales={"2026-09-02", "2026-10-01"})
+        self.assertEqual(nuevo["areas"]["Cocina"]["encargados"]["Andrea"],
+                         ["2026-09-02", "2026-10-01"])
+        nuevo = guardar_persona(nuevo, "Cocina", "Andrea", "Andrea", "lunes", 0,
+                                date(2026, 9, 1), ["M"] * 5, encargado=False)
+        self.assertNotIn("Andrea", nuevo["areas"]["Cocina"]["encargados"])
+
+    def test_no_admite_dos_adicionales_en_semana_compartida(self):
+        with self.assertRaisesRegex(ValueError, "un día libre adicional"):
+            guardar_persona(self.config, "Cocina", "Ana", "Ana", "lunes", 0,
+                            date(2026, 9, 1), ["M"] * 5, encargado=True,
+                            adicionales={"2026-09-30", "2026-10-01"})
+
 
 if __name__ == "__main__":
     unittest.main()
