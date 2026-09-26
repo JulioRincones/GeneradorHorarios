@@ -228,8 +228,10 @@ en los tres primeros días trabajados, saltando los descansos:
 Los otros días conservan sus horas habituales. Seis turnos de 8 horas quedan
 en 45 horas; los turnos intermedios y los descansos adicionales pueden dejar
 un total menor. No se agregan horas para llegar a 45. Con domingo libre no se
-aplica esta reducción. La vista previa y el Excel muestran las horas efectivas
-y el total de cada semana completa. Si aun así se superan 45 horas, se bloquea
+aplica esta reducción. La vista previa muestra las horas efectivas y los totales
+semanales. El Excel muestra los horarios sin aclaraciones de día siguiente ni
+totales semanales ni nombres de turno: solo fecha y horas (por ejemplo
+`18:00 – 02:00`) o `LIBRE`, para simplificar la impresión. Si se superan 45 horas, se bloquea
 la generación y se informa la persona y semana afectadas.
 
 Las horas se calculan entre entrada y salida, sin descontar pausas. La cobertura

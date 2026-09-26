@@ -498,21 +498,11 @@ def hoja(config, nombre, fechas, horarios):
                         formatos.append(0)
                     else:
                         turno = turnos[indice]
-                        texto = descripcion_turno(config, turno)
+                        horas = re.findall(r"\b(?:[01]\d|2[0-3]):[0-5]\d\b", descripcion_turno(config, turno))
+                        texto = "LIBRE" if turno == "LIBRE" else " – ".join(horas)
                         valores.append(f"{dia}\n{texto}")
                         formatos.append(3 if turno == "LIBRE" else 4)
                 agregar(valores, formatos, 60)
-            totales = []
-            for i, semana in enumerate(semanas, 1):
-                indices_semana = [indices[date(anio, mes, d)] for d in semana
-                                  if d and date(anio, mes, d) in indices]
-                if indices_semana:
-                    total = getattr(turnos[indices_semana[0]], "horas_semana", None)
-                    if total is not None:
-                        totales.append(f"S{i}: {total:g} h")
-            if totales:
-                agregar(["Semanas completas · " + " | ".join(totales) + " · Máximo 45 h"], alto=24)
-                fusiones.append(f"A{fila}:G{fila}")
             agregar([], alto=14)
     merges = SubElement(root, "mergeCells", count=str(len(fusiones)))
     for ref in fusiones:

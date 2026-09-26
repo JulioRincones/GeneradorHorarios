@@ -1,4 +1,5 @@
 import json
+import re
 import tempfile
 import unittest
 from collections import Counter
@@ -326,7 +327,7 @@ class HorariosTest(unittest.TestCase):
                     columna = chr(65 + dia.weekday())
                     texto = celdas[f"{columna}{fila}"]
                     turno = horarios["Cocina"]["Ana"][indice]
-                    esperado = turno.descripcion
+                    esperado = "LIBRE" if turno == "LIBRE" else " – ".join(re.findall(r"\b(?:[01]\d|2[0-3]):[0-5]\d\b", turno.descripcion))
                     self.assertEqual(texto, f"{dia.day}\n{esperado}")
                 for columna in range(desplazamiento):
                     self.assertEqual(celdas[f"{chr(65+columna)}5"], "")

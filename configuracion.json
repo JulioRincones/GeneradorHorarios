@@ -13,23 +13,17 @@
         "Luis",
         "Carla",
         "Pedro",
-        "Veronica"
+        "Veronica",
+        "Andrea"
       ],
       "turnos_por_mes": {
         "2026-09": {
-          "Ana": [
-            "M",
-            "T",
-            "M",
-            "T",
-            "M"
-          ],
-          "Luis": [
-            "M",
-            "T",
-            "M",
-            "T",
-            "M"
+          "Pedro": [
+            "I",
+            "I",
+            "I",
+            "I",
+            "I"
           ],
           "Carla": [
             "T",
@@ -38,28 +32,66 @@
             "M",
             "T"
           ],
-          "Pedro": [
-            "T",
+          "Ana": [
+            "I",
+            "I",
+            "I",
+            "I",
+            "I"
+          ],
+          "Luis": [
             "M",
             "T",
             "M",
-            "T"
+            "T",
+            "M"
           ]
         }
       },
       "dias_libres": {
-        "Ana": "lunes",
-        "Luis": "martes",
-        "Carla": "miércoles",
+        "Veronica": "martes",
         "Pedro": "jueves",
-        "Veronica": "martes"
+        "Carla": "miércoles",
+        "Ana": "viernes",
+        "Luis": "lunes",
+        "Andrea": "lunes"
       },
       "turnos_semanales": {
-        "2026-08-31": {},
-        "2026-09-07": {},
-        "2026-09-14": {},
-        "2026-09-21": {},
-        "2026-09-28": {}
+        "2026-08-31": {
+          "Pedro": "I",
+          "Carla": "T",
+          "Ana": "I",
+          "Luis": "M",
+          "Andrea": "T"
+        },
+        "2026-09-07": {
+          "Pedro": "I",
+          "Carla": "M",
+          "Ana": "I",
+          "Luis": "T",
+          "Andrea": "M"
+        },
+        "2026-09-14": {
+          "Pedro": "I",
+          "Carla": "T",
+          "Ana": "I",
+          "Luis": "M",
+          "Andrea": "T"
+        },
+        "2026-09-21": {
+          "Pedro": "I",
+          "Carla": "M",
+          "Ana": "I",
+          "Luis": "T",
+          "Andrea": "M"
+        },
+        "2026-09-28": {
+          "Pedro": "I",
+          "Carla": "T",
+          "Ana": "I",
+          "Luis": "M",
+          "Andrea": "T"
+        }
       },
       "cobertura": {
         "M": 1,
@@ -68,11 +100,12 @@
       },
       "desfase": 0,
       "domingo_grupo": {
+        "Veronica": 0,
+        "Pedro": 1,
+        "Carla": 0,
         "Ana": 0,
         "Luis": 1,
-        "Carla": 0,
-        "Pedro": 1,
-        "Veronica": 0
+        "Andrea": 1
       },
       "encargados": {
         "Veronica": [
@@ -94,17 +127,12 @@
         "Sofía",
         "Diego",
         "Valentina",
-        "Tomás"
+        "Tomás",
+        "EDU",
+        "Angelica"
       ],
       "turnos_por_mes": {
         "2026-09": {
-          "Sofía": [
-            "M",
-            "T",
-            "M",
-            "T",
-            "M"
-          ],
           "Diego": [
             "M",
             "T",
@@ -125,22 +153,80 @@
             "T",
             "M",
             "T"
+          ],
+          "Sofía": [
+            "I",
+            "I",
+            "I",
+            "I",
+            "I"
           ]
         }
       },
       "dias_libres": {
-        "Sofía": "lunes",
         "Diego": "martes",
         "Valentina": "miércoles",
-        "Tomás": "jueves"
+        "Tomás": "jueves",
+        "EDU": "lunes",
+        "Sofía": "viernes",
+        "Angelica": "lunes"
       },
-      "turnos_semanales": {},
+      "turnos_semanales": {
+        "2026-08-31": {
+          "EDU": "M",
+          "Sofía": "I",
+          "Angelica": "M"
+        },
+        "2026-09-07": {
+          "EDU": "T",
+          "Sofía": "I",
+          "Angelica": "T"
+        },
+        "2026-09-14": {
+          "EDU": "M",
+          "Sofía": "I",
+          "Angelica": "M"
+        },
+        "2026-09-21": {
+          "EDU": "T",
+          "Sofía": "I",
+          "Angelica": "T"
+        },
+        "2026-09-28": {
+          "EDU": "M",
+          "Sofía": "I",
+          "Angelica": "M"
+        }
+      },
       "cobertura": {
         "M": 1,
         "T": 1,
         "I": 0
       },
-      "desfase": 1
+      "desfase": 1,
+      "domingo_grupo": {
+        "Diego": 1,
+        "Valentina": 0,
+        "Tomás": 1,
+        "EDU": 0,
+        "Sofía": 0,
+        "Angelica": 1
+      },
+      "encargados": {
+        "EDU": [
+          "2026-09-01",
+          "2026-09-08",
+          "2026-09-15",
+          "2026-09-22",
+          "2026-09-29"
+        ],
+        "Angelica": [
+          "2026-09-03",
+          "2026-09-10",
+          "2026-09-17",
+          "2026-09-24"
+        ]
+      }
     },
     "Garzones": {
       "empleados": [

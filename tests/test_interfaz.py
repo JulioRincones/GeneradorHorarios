@@ -11,6 +11,12 @@ from datetime import timedelta
 class InterfazTest(unittest.TestCase):
     def setUp(self):
         self.config = json.loads((BASE / "configuracion.json").read_text(encoding="utf-8"))
+        self.config["areas"]["Cocina"] = {
+            "empleados": ["Ana", "Luis", "Carla", "Pedro"],
+            "dias_libres": {"Ana": "lunes", "Luis": "martes", "Carla": "miércoles", "Pedro": "jueves"},
+            "cobertura": {"M": 1, "T": 1, "I": 0},
+            "turnos_por_mes": {"2026-09": {"Ana": ["M", "T", "M", "T", "M"]}},
+        }
 
     def test_crear_y_editar_turno_por_dia(self):
         dias = [["08:00", "16:00"] for _ in range(7)]
