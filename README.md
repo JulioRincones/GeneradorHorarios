@@ -168,6 +168,27 @@ intermedio aunque su mínimo sea cero si quedan personas para cubrir los demás
 turnos. Para exigir intermedio, incrementa `I` en la cobertura correspondiente.
 Si una selección impide cubrir los mínimos, se informa el área y la fecha.
 
+## Máximo semanal de 45 horas
+
+La semana se calcula de lunes a domingo, incluyendo los días del mes vecino
+cuando corresponda. En semanas con domingo trabajado se descuenta una hora
+en los tres primeros días trabajados, saltando los descansos:
+
+- Mañana: salida a las 16:00 en vez de las 17:00.
+- Tarde: entrada a las 17:00 en vez de las 16:00.
+- Intermedio: salida a las 18:00 en vez de las 19:00.
+
+Los otros días conservan sus horas habituales. Seis turnos de 8 horas quedan
+en 45 horas; los turnos intermedios y los descansos adicionales pueden dejar
+un total menor. No se agregan horas para llegar a 45. Con domingo libre no se
+aplica esta reducción. La vista previa y el Excel muestran las horas efectivas
+y el total de cada semana completa. Si aun así se superan 45 horas, se bloquea
+la generación y se informa la persona y semana afectadas.
+
+Las horas se calculan entre entrada y salida, sin descontar pausas. La cobertura
+sigue siendo por cantidad de personas asignadas a cada turno; no se comprueba
+la cobertura minuto a minuto después de reducir las jornadas.
+
 ## Ciclo base
 
 Primero se respetan los descansos y selecciones semanales; después se cubren
@@ -177,7 +198,7 @@ Cada persona tiene como máximo un turno por día. Cambiar la configuración
 puede modificar resultados para fechas ya exportadas.
 
 Esta versión no contempla vacaciones, ausencias, otras restricciones de disponibilidad,
-límites de horas ni descansos mínimos entre turnos. Revisa esos requisitos
+descansos mínimos entre turnos ni otras reglas de jornada. Revisa esos requisitos
 antes de usar el horario definitivo. Los nombres y horas incluidos son ejemplos.
 
 El formato usa papel A4 vertical, colores suaves y dos trabajadores por página,

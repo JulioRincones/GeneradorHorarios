@@ -10,7 +10,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from horarios import (AREAS, BASE, DIAS_COMPLETOS, MESES, exportar, generar_mes,
-                      selecciones_del_area, validar, descansos_encargados, numero_dia)
+                      selecciones_del_area, validar, descansos_encargados, numero_dia, descripcion_turno)
 
 
 def lunes_del_mes(mes):
@@ -392,9 +392,10 @@ class Aplicacion(ttk.Frame):
         for area, empleados in horarios.items():
             for persona, turnos in empleados.items():
                 texto.insert("end", f"{area} · {persona}\n")
-                texto.insert("end", "".join(f"{d.capitalize():<14}" for d in DIAS_COMPLETOS)+"\n")
+                texto.insert("end", "".join(f"{d.capitalize():<42}" for d in DIAS_COMPLETOS)+"Total semanal\n")
                 for semana in calendar.Calendar(0).monthdayscalendar(self.mes.year, self.mes.month):
-                    texto.insert("end", "".join(f"{str(d)+' '+turnos[d-1] if d else '':<14}" for d in semana)+"\n")
+                    total = next(turnos[d-1].horas_semana for d in semana if d)
+                    texto.insert("end", "".join(f"{str(d)+' '+descripcion_turno(self.config, turnos[d-1]) if d else '':<42}" for d in semana)+f"{total:g} h\n")
                 texto.insert("end", "\n")
         texto.configure(state="disabled")
 

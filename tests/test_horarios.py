@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
-from horarios import BASE, NS, exportar, generar, generar_mes, hoja, numero_dia, selecciones_del_area
+from horarios import BASE, NS, exportar, generar, generar_mes, hoja, numero_dia, selecciones_del_area, ajustar_horas
 
 
 class HorariosTest(unittest.TestCase):
@@ -14,7 +14,45 @@ class HorariosTest(unittest.TestCase):
         self.config = json.loads((BASE / "configuracion.json").read_text(encoding="utf-8"))
         for area in self.config["areas"].values():
             area.pop("turnos_por_mes", None)
+        # Los casos unitarios no dependen de personas añadidas desde la interfaz.
+        self.config["areas"]["Cocina"] = {
+            "empleados": ["Ana", "Luis", "Carla", "Pedro"],
+            "dias_libres": {"Ana": "lunes", "Luis": "martes", "Carla": "miércoles", "Pedro": "jueves"},
+            "cobertura": {"M": 1, "T": 1, "I": 0}, "desfase": 0,
+        }
         self.inicio = date(2026, 9, 28)
+
+    def test_reduccion_horaria_por_tipo(self):
+        fechas = [self.inicio + timedelta(days=i) for i in range(7)]
+        for codigo, texto, total in (("M", "09:00 a 16:00", 45),
+                                     ("T", "17:00 a 00:00", 45),
+                                     ("I", "13:00 a 18:00", 33)):
+            with self.subTest(codigo=codigo):
+                turnos = ajustar_horas(self.config, fechas, ["LIBRE"] + [codigo]*6, "Ana")
+                self.assertEqual(sum(t.minutos for t in turnos), total*60)
+                self.assertEqual([t.reducido for t in turnos], [False, True, True, True, False, False, False])
+                self.assertIn(texto, turnos[1].descripcion)
+                self.assertEqual(turnos[4].descripcion, self.config["turnos"][codigo])
+                self.assertEqual(turnos[0].horas_semana, total)
+
+    def test_domingo_libre_sin_reducciones_y_maximo(self):
+        fechas = [self.inicio + timedelta(days=i) for i in range(7)]
+        turnos = ajustar_horas(self.config, fechas, ["LIBRE"] + ["M"]*5 + ["LIBRE"], "Ana")
+        self.assertEqual(sum(t.minutos for t in turnos), 40*60)
+        self.assertFalse(any(t.reducido for t in turnos))
+        self.config["turnos"]["M"] = "Mañana · 09:00 a 19:00"
+        with self.assertRaisesRegex(ValueError, "máximo es 45"):
+            ajustar_horas(self.config, fechas, ["LIBRE"] + ["M"]*6, "Ana")
+
+    def test_horas_continuas_entre_meses(self):
+        _, completo = generar(self.config, self.inicio, 1)
+        _, septiembre = generar_mes(self.config, date(2026, 9, 1))
+        _, octubre = generar_mes(self.config, date(2026, 10, 1))
+        for area, personas in completo.items():
+            for persona, turnos in personas.items():
+                separados = septiembre[area][persona][-3:] + octubre[area][persona][:4]
+                self.assertEqual([(t.descripcion, t.minutos, t.horas_semana) for t in turnos],
+                                 [(t.descripcion, t.minutos, t.horas_semana) for t in separados])
 
     def test_ejemplo_mensual_turnos_fijos_y_descansos(self):
         config = json.loads((BASE / "configuracion.json").read_text(encoding="utf-8"))
@@ -270,7 +308,7 @@ class HorariosTest(unittest.TestCase):
                     columna = chr(65 + dia.weekday())
                     texto = celdas[f"{columna}{fila}"]
                     turno = horarios["Cocina"]["Ana"][indice]
-                    esperado = "LIBRE" if turno == "LIBRE" else self.config["turnos"][turno]
+                    esperado = turno.descripcion
                     self.assertEqual(texto, f"{dia.day}\n{esperado}")
                 for columna in range(desplazamiento):
                     self.assertEqual(celdas[f"{chr(65+columna)}5"], "")

@@ -3,6 +3,7 @@
 import argparse
 import calendar
 import json
+import re
 import unicodedata
 from datetime import date, timedelta
 from pathlib import Path
@@ -15,6 +16,57 @@ DIAS = ("Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom")
 DIAS_COMPLETOS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 MESES = ("Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre")
 NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+
+
+class TurnoCalculado(str):
+    """Conserva el código de turno y añade sus horas efectivas de ese día."""
+
+    def __new__(cls, codigo, descripcion, minutos, horas_semana, reducido=False):
+        objeto = super().__new__(cls, codigo)
+        objeto.descripcion = descripcion
+        objeto.minutos = minutos
+        objeto.horas_semana = horas_semana
+        objeto.reducido = reducido
+        return objeto
+
+
+def descripcion_turno(config, turno):
+    return getattr(turno, "descripcion", "LIBRE" if turno == "LIBRE" else config["turnos"].get(turno, turno))
+
+
+def ajustar_horas(config, fechas, turnos, persona):
+    calculados = []
+    for inicio in range(0, len(fechas), 7):
+        semana = turnos[inicio:inicio+7]
+        reducir = semana[6] != "LIBRE"
+        pendientes = 3 if reducir else 0
+        dias = []
+        for codigo in semana:
+            if codigo == "LIBRE":
+                dias.append((codigo, "LIBRE", 0, False))
+                continue
+            descripcion = config["turnos"][codigo]
+            coincidencias = list(re.finditer(r"\b([01]\d|2[0-3]):([0-5]\d)\b", descripcion))
+            if len(coincidencias) != 2:
+                raise ValueError(f"{codigo}: indica entrada y salida en formato HH:MM para calcular las horas.")
+            entrada, salida = [int(m[1])*60+int(m[2]) for m in coincidencias]
+            minutos = (salida-entrada) % (24*60)
+            reducido = pendientes > 0
+            if reducido:
+                if minutos <= 60:
+                    raise ValueError(f"{codigo}: el turno debe durar más de una hora para aplicar el descuento.")
+                indice = 0 if codigo == "T" else 1
+                hora = (entrada+60) % 1440 if indice == 0 else (salida-60) % 1440
+                posicion = coincidencias[indice]
+                descripcion = descripcion[:posicion.start()] + f"{hora//60:02d}:{hora%60:02d}" + descripcion[posicion.end():]
+                minutos -= 60
+                pendientes -= 1
+            dias.append((codigo, descripcion, minutos, reducido))
+        total = sum(d[2] for d in dias)
+        if total > 45*60:
+            raise ValueError(f"{persona}, semana del {fechas[inicio]}: {total/60:g} horas; el máximo es 45. Revisa los turnos.")
+        calculados.extend(TurnoCalculado(c, d, m, total/60, r) for c, d, m, r in dias)
+    return calculados
 
 
 def entero(valor, nombre, minimo=0):
@@ -206,6 +258,12 @@ def generar(config, inicio, semanas, *, fin=None):
     fechas = [inicio + timedelta(days=i) for i in range(semanas * 7)]
     if fin is not None:
         fechas = [dia for dia in fechas if dia <= fin]
+    if not fechas:
+        raise ValueError("El período no contiene fechas.")
+    solicitadas = fechas
+    primero = fechas[0] - timedelta(days=fechas[0].weekday())
+    ultimo = fechas[-1] + timedelta(days=6-fechas[-1].weekday())
+    fechas = [primero + timedelta(days=i) for i in range((ultimo-primero).days+1)]
     resultado = {}
     for nombre in AREAS:
         area = config["areas"][nombre]
@@ -249,7 +307,11 @@ def generar(config, inicio, semanas, *, fin=None):
                 asignados[e] = activos[(empleados.index(e) + semana + area.get("desfase", 0)) % len(activos)]
             for e in empleados:
                 resultado[nombre][e].append(asignados[e])
-    return fechas, resultado
+        for e in empleados:
+            resultado[nombre][e] = ajustar_horas(config, fechas, resultado[nombre][e], f"{nombre}, {e}")
+    offset = (solicitadas[0]-primero).days
+    return solicitadas, {a: {e: t[offset:offset+len(solicitadas)] for e, t in personas.items()}
+                         for a, personas in resultado.items()}
 
 
 def generar_mes(config, mes):
@@ -322,10 +384,21 @@ def hoja(config, nombre, fechas, horarios):
                         formatos.append(0)
                     else:
                         turno = turnos[indice]
-                        texto = "LIBRE" if turno == "LIBRE" else config["turnos"][turno]
+                        texto = descripcion_turno(config, turno)
                         valores.append(f"{dia}\n{texto}")
                         formatos.append(3 if turno == "LIBRE" else 4)
                 agregar(valores, formatos, 60)
+            totales = []
+            for i, semana in enumerate(semanas, 1):
+                indices_semana = [indices[date(anio, mes, d)] for d in semana
+                                  if d and date(anio, mes, d) in indices]
+                if indices_semana:
+                    total = getattr(turnos[indices_semana[0]], "horas_semana", None)
+                    if total is not None:
+                        totales.append(f"S{i}: {total:g} h")
+            if totales:
+                agregar(["Semanas completas · " + " | ".join(totales) + " · Máximo 45 h"], alto=24)
+                fusiones.append(f"A{fila}:G{fila}")
             agregar([], alto=14)
     merges = SubElement(root, "mergeCells", count=str(len(fusiones)))
     for ref in fusiones:
