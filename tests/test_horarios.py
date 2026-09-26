@@ -13,6 +13,8 @@ from horarios import BASE, NS, exportar, generar, generar_mes, hoja, numero_dia,
 class HorariosTest(unittest.TestCase):
     def setUp(self):
         self.config = json.loads((BASE / "configuracion.json").read_text(encoding="utf-8"))
+        self.config["turnos"] = {"M": "Mañana · 09:00 a 17:00", "T": "Tarde · 16:00 a 00:00", "I": "Intermedio · 13:00 a 19:00"}
+        self.config.pop("turnos_detalle", None)
         for area in self.config["areas"].values():
             area.pop("turnos_por_mes", None)
         # Los casos unitarios no dependen de personas añadidas desde la interfaz.

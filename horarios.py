@@ -53,11 +53,14 @@ def horario_del_dia(config, codigo, fecha):
     return config["turnos"][codigo]
 
 
-def ajustar_horas(config, fechas, turnos, persona, *, verificar=True):
+def ajustar_horas(config, fechas, turnos, persona, *, verificar=True, jornada=None):
+    jornada = jornada or {"tipo": "full_time"}
+    tipo = jornada["tipo"]
+    limite = {"full_time": 45, "part_time_30": 32, "part_time_20": 21}[tipo]
     calculados = []
     for inicio in range(0, len(fechas), 7):
         semana = turnos[inicio:inicio+7]
-        reducir = semana[6] != "LIBRE"
+        reducir = tipo == "full_time" and semana[6] != "LIBRE"
         pendientes = 3 if reducir else 0
         dias = []
         for posicion_dia, codigo in enumerate(semana):
@@ -65,6 +68,11 @@ def ajustar_horas(config, fechas, turnos, persona, *, verificar=True):
                 dias.append((codigo, "LIBRE", 0, False))
                 continue
             descripcion = horario_del_dia(config, codigo, fechas[inicio+posicion_dia])
+            if tipo == "part_time_20":
+                hora = jornada["entradas"][str(fechas[inicio+posicion_dia].weekday())]
+                entrada_min = int(hora[:2])*60 + int(hora[3:])
+                salida_min = (entrada_min + 630) % 1440
+                descripcion = f"Part time · {hora} a {salida_min//60:02d}:{salida_min%60:02d}"
             coincidencias = list(re.finditer(r"\b([01]\d|2[0-3]):([0-5]\d)\b", descripcion))
             if len(coincidencias) != 2:
                 raise ValueError(f"{codigo}: indica entrada y salida en formato HH:MM para calcular las horas.")
@@ -83,8 +91,8 @@ def ajustar_horas(config, fechas, turnos, persona, *, verificar=True):
                 pendientes -= 1
             dias.append((codigo, descripcion, minutos, reducido))
         total = sum(d[2] for d in dias)
-        if verificar and total > 45*60:
-            raise ValueError(f"{persona}, semana del {fechas[inicio]}: {total/60:g} horas; el máximo es 45. Revisa los turnos.")
+        if verificar and total > limite*60:
+            raise ValueError(f"{persona}, semana del {fechas[inicio]}: {total/60:g} horas; el máximo es {limite}. Revisa los turnos.")
         calculados.extend(TurnoCalculado(c, d, m, total/60, r) for c, d, m, r in dias)
     return calculados
 
@@ -205,6 +213,42 @@ def descansos_encargados(area):
     return resultado
 
 
+def validar_jornadas(area):
+    jornadas = area.get("jornadas", {})
+    if not isinstance(jornadas, dict):
+        raise ValueError("jornadas debe indicar el tipo de jornada por persona.")
+    for persona, jornada in jornadas.items():
+        if persona not in area["empleados"] or not isinstance(jornada, dict):
+            raise ValueError(f"Jornada inválida: {persona}.")
+        tipo = jornada.get("tipo")
+        if tipo not in ("full_time", "part_time_30", "part_time_20"):
+            raise ValueError(f"{persona}: tipo de jornada desconocido.")
+        if tipo == "full_time":
+            continue
+        dias = jornada.get("dias")
+        cantidad = 4 if tipo == "part_time_30" else 2
+        if (not isinstance(dias, list) or any(type(d) is not int or not 0 <= d <= 6 for d in dias)
+                or len(dias) != cantidad or len(set(dias)) != cantidad):
+            raise ValueError(f"{persona}: selecciona exactamente {cantidad} días distintos de trabajo.")
+        if persona in area.get("encargados", {}):
+            raise ValueError(f"{persona}: los descansos adicionales de encargado se aplican solo a full time.")
+        if tipo == "part_time_20":
+            entradas = jornada.get("entradas", {})
+            if not isinstance(entradas, dict) or set(entradas) != {str(d) for d in dias} or any(
+                not isinstance(h, str) or not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", h) for h in entradas.values()
+            ):
+                raise ValueError(f"{persona}: indica la entrada HH:MM de cada día seleccionado.")
+
+
+def trabaja_dia(area, persona, indice, dia, semana):
+    jornada = area.get("jornadas", {}).get(persona, {"tipo": "full_time"})
+    if jornada["tipo"] != "full_time":
+        return dia in jornada["dias"]
+    if dia == 6:
+        return semana % 2 != area.get("domingo_grupo", {}).get(persona, indice % 2)
+    return dia != numero_dia(area["dias_libres"][persona])
+
+
 def validar(config, *, verificar_cobertura=True):
     if not isinstance(config, dict):
         raise ValueError("La configuración debe ser un objeto JSON.")
@@ -238,6 +282,7 @@ def validar(config, *, verificar_cobertura=True):
             raise ValueError(f"Hay nombres vacíos o inválidos en {nombre}.")
         if len({e.strip().casefold() for e in empleados}) != len(empleados):
             raise ValueError(f"Hay nombres repetidos en {nombre}.")
+        validar_jornadas(area)
         cobertura = area.get("cobertura")
         if not isinstance(cobertura, dict) or not cobertura:
             raise ValueError(f"Define la cobertura diaria en {nombre}.")
@@ -261,7 +306,8 @@ def validar(config, *, verificar_cobertura=True):
                 dias_libres.append(numero_dia(dia))
             except ValueError as error:
                 raise ValueError(f"{nombre}, {empleado}: {error}") from None
-        if set(libres) != set(empleados) or 6 in dias_libres:
+        full_time = {e for e in empleados if area.get("jornadas", {}).get(e, {}).get("tipo", "full_time") == "full_time"}
+        if not full_time.issubset(libres) or 6 in dias_libres:
             raise ValueError(f"{nombre}: cada persona necesita un día libre fijo de lunes a sábado.")
         descansos_encargados(area)
         grupos = area.get("domingo_grupo", {})
@@ -277,11 +323,11 @@ def validar(config, *, verificar_cobertura=True):
                 raise ValueError(f"{nombre}: turno de domingo desconocido: {turno}.")
             entero(cantidad, f"Cobertura dominical de {turno} en {nombre}")
         for grupo in (0, 1):
-            disponibles = sum(grupos.get(e, i % 2) != grupo for i, e in enumerate(empleados))
+            disponibles = sum(trabaja_dia(area, e, i, 6, grupo) for i, e in enumerate(empleados))
             if verificar_cobertura and disponibles < sum(domingo.values()):
                 raise ValueError(f"{nombre}: el domingo del grupo {grupo} hay {disponibles} personas para {sum(domingo.values())} puestos mínimos.")
         for dia in range(6):
-            disponibles = len(empleados) - dias_libres.count(dia)
+            disponibles = sum(trabaja_dia(area, e, i, dia, 0) for i, e in enumerate(empleados))
             if verificar_cobertura and disponibles < puestos:
                 raise ValueError(
                     f"{nombre}: el {DIAS_COMPLETOS[dia]} hay {disponibles} personas disponibles "
@@ -322,12 +368,12 @@ def generar(config, inicio, semanas, *, fin=None, diagnostico=False):
             semana = (dia - origen_lunes).days // 7
             ausentes = {
                 e for i, e in enumerate(empleados)
-                if (dia.weekday() < 6 and libres[e] == dia.weekday())
+                if not trabaja_dia(area, e, i, dia.weekday(), semana)
                 or dia in adicionales.get(e, set())
-                or (dia.weekday() == 6 and semana % 2 == area.get("domingo_grupo", {}).get(e, i % 2))
             }
             lunes = (dia - timedelta(days=dia.weekday())).isoformat()
-            seleccion = selecciones.get(lunes, {})
+            seleccion = {e: t for e, t in selecciones.get(lunes, {}).items()
+                         if area.get("jornadas", {}).get(e, {}).get("tipo") != "part_time_20"}
             cobertura = area.get("cobertura_domingo", area["cobertura"]) if dia.weekday() == 6 else area["cobertura"]
             pendientes = dict(cobertura)
             asignados = {e: "LIBRE" for e in ausentes}
@@ -352,7 +398,8 @@ def generar(config, inicio, semanas, *, fin=None, diagnostico=False):
             for e in empleados:
                 resultado[nombre][e].append(asignados[e])
         for e in empleados:
-            resultado[nombre][e] = ajustar_horas(config, fechas, resultado[nombre][e], f"{nombre}, {e}", verificar=not diagnostico)
+            resultado[nombre][e] = ajustar_horas(config, fechas, resultado[nombre][e], f"{nombre}, {e}", verificar=not diagnostico,
+                                                jornada=area.get("jornadas", {}).get(e))
     offset = (solicitadas[0]-primero).days
     return solicitadas, {a: {e: t[offset:offset+len(solicitadas)] for e, t in personas.items()}
                          for a, personas in resultado.items()}

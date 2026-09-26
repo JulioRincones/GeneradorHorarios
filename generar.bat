@@ -1,4 +1,3 @@
 @echo off
 cd /d "%~dp0"
-python interfaz.py
-if errorlevel 1 pause
+start "" wscript.exe "%~dp0generar.vbs"

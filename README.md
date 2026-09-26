@@ -9,7 +9,7 @@ descripción del turno o `LIBRE`; los días ajenos al mes quedan vacíos.
 ## Uso
 
 1. Edita `configuracion.json` con los nombres y turnos de tu empresa.
-2. En Windows, haz doble clic en `generar.bat` para abrir la interfaz gráfica.
+2. En Windows, haz doble clic en `generar.vbs` para abrir la interfaz gráfica sin consola.
 3. Elige el mes y pulsa **Mostrar mes**. Edita las personas y pulsa **Generar Excel…** para elegir dónde guardarlo.
 4. Revisa la vista previa de impresión y selecciona todo el libro para imprimir las tres áreas.
 
@@ -25,6 +25,11 @@ Si el archivo ya existe, el programa pide usar otro nombre para proteger cambios
 
 También puedes abrirla con `python interfaz.py`. Utiliza tkinter, incluido en
 la instalación habitual de Python para Windows; no requiere paquetes externos.
+
+Para abrir únicamente la ventana de la aplicación, utiliza `generar.vbs`, que
+inicia Python con `pythonw.exe` (o `pyw.exe` si está disponible como alternativa).
+Puedes crear un acceso directo a ese archivo. `generar.bat` se mantiene por
+compatibilidad, pero Windows puede mostrar brevemente CMD al ejecutar un `.bat`.
 
 - Las pestañas separan Cocina, Barra y Garzones.
 - Haz doble clic en una persona para editar su nombre, día libre, grupo de
@@ -125,6 +130,26 @@ con mínimo cero inicialmente. Las ediciones se aplican a todas las asignaciones
 del código, incluidos otros meses, sin cambiar la selección de cada trabajador.
 El código existente no se renombra. Los horarios editados por día reemplazan las
 variaciones predeterminadas de mañana y tarde. El límite de 45 horas sigue vigente.
+
+## Tipos de jornada
+
+Al crear o editar una persona, el panel **Tipo de jornada** permite elegir:
+
+- **Full time:** reglas actuales, con día libre fijo, domingos alternados y
+  máximo de 45 horas. Puede tener descansos adicionales como encargado.
+- **Part time 30 h:** elige exactamente cuatro días de la semana. Usa los turnos
+  semanales existentes, sin descuentos de horas por trabajar domingo. Se valida
+  un máximo de **32 horas semanales**; puede sumar menos según los turnos elegidos.
+- **Part time 20 h:** elige exactamente dos días e indica la entrada de cada uno
+  en formato HH:MM. La salida se calcula 10 h 30 min después. Son **21 horas por
+  semana**, según la duración solicitada; no se usan los selectores semanales.
+
+En part time los días seleccionados se repiten todas las semanas, incluido el
+domingo si está marcado. Los demás días aparecen como `LIBRE`. No se aplican el
+día libre fijo, los grupos dominicales ni los descansos adicionales de encargado.
+Las horas reales se reflejan en la vista previa, el Excel y las alertas de cobertura.
+Los cambios de jornada afectan también los meses ya configurados.
+Las personas existentes se consideran full time hasta que cambies su jornada.
 
 ## Encargados de turno
 
