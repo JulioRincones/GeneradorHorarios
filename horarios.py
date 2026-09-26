@@ -34,6 +34,25 @@ def descripcion_turno(config, turno):
     return getattr(turno, "descripcion", "LIBRE" if turno == "LIBRE" else config["turnos"].get(turno, turno))
 
 
+def horario_del_dia(config, codigo, fecha):
+    dia = fecha.weekday()
+    detalle = config.get("turnos_detalle", {}).get(codigo)
+    if detalle:
+        entrada, salida = detalle["dias"][dia]
+        siguiente = " del día siguiente" if salida < entrada else ""
+        return f"{detalle['nombre']} · {entrada} a {salida}{siguiente}"
+    if codigo == "T" and dia in (3, 4, 5):
+        return "Tarde · 18:00 a 02:00 del día siguiente"
+    if codigo == "M" and dia == 5:
+        return "Mañana · 10:30 a 18:30"
+    if dia == 6:
+        if codigo == "M":
+            return "Mañana · 10:00 a 18:00"
+        if codigo == "T":
+            return "Tarde · 14:00 a 22:00"
+    return config["turnos"][codigo]
+
+
 def ajustar_horas(config, fechas, turnos, persona):
     calculados = []
     for inicio in range(0, len(fechas), 7):
@@ -41,11 +60,11 @@ def ajustar_horas(config, fechas, turnos, persona):
         reducir = semana[6] != "LIBRE"
         pendientes = 3 if reducir else 0
         dias = []
-        for codigo in semana:
+        for posicion_dia, codigo in enumerate(semana):
             if codigo == "LIBRE":
                 dias.append((codigo, "LIBRE", 0, False))
                 continue
-            descripcion = config["turnos"][codigo]
+            descripcion = horario_del_dia(config, codigo, fechas[inicio+posicion_dia])
             coincidencias = list(re.finditer(r"\b([01]\d|2[0-3]):([0-5]\d)\b", descripcion))
             if len(coincidencias) != 2:
                 raise ValueError(f"{codigo}: indica entrada y salida en formato HH:MM para calcular las horas.")
@@ -55,7 +74,8 @@ def ajustar_horas(config, fechas, turnos, persona):
             if reducido:
                 if minutos <= 60:
                     raise ValueError(f"{codigo}: el turno debe durar más de una hora para aplicar el descuento.")
-                indice = 0 if codigo == "T" else 1
+                reduccion = config.get("turnos_detalle", {}).get(codigo, {}).get("reduccion", "entrada" if codigo == "T" else "salida")
+                indice = 0 if reduccion == "entrada" else 1
                 hora = (entrada+60) % 1440 if indice == 0 else (salida-60) % 1440
                 posicion = coincidencias[indice]
                 descripcion = descripcion[:posicion.start()] + f"{hora//60:02d}:{hora%60:02d}" + descripcion[posicion.end():]
@@ -73,6 +93,23 @@ def entero(valor, nombre, minimo=0):
     if type(valor) is not int or valor < minimo:
         raise ValueError(f"{nombre} debe ser un entero mayor o igual a {minimo}.")
     return valor
+
+
+def validar_detalle_turno(detalle):
+    if not isinstance(detalle, dict) or not isinstance(detalle.get("nombre"), str) or not detalle["nombre"].strip():
+        raise ValueError("Indica un nombre para el turno.")
+    if detalle.get("reduccion") not in ("entrada", "salida"):
+        raise ValueError("Elige descontar la hora en la entrada o en la salida.")
+    dias = detalle.get("dias")
+    if not isinstance(dias, list) or len(dias) != 7:
+        raise ValueError("Define entrada y salida para los siete días.")
+    for i, par in enumerate(dias):
+        if not isinstance(par, list) or len(par) != 2 or any(
+            not isinstance(h, str) or not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", h) for h in par
+        ):
+            raise ValueError(f"{DIAS_COMPLETOS[i].capitalize()}: usa horas HH:MM, por ejemplo 09:00.")
+        if par[0] == par[1]:
+            raise ValueError(f"{DIAS_COMPLETOS[i].capitalize()}: entrada y salida deben ser distintas.")
 
 
 def numero_dia(valor):
@@ -176,6 +213,13 @@ def validar(config):
     turnos = config.get("turnos")
     if not isinstance(turnos, dict) or not turnos:
         raise ValueError("Define al menos un turno.")
+    detalles = config.get("turnos_detalle", {})
+    if not isinstance(detalles, dict):
+        raise ValueError("turnos_detalle debe ser un objeto de horarios por día.")
+    for codigo, detalle in detalles.items():
+        if codigo not in turnos:
+            raise ValueError(f"Detalle de turno desconocido: {codigo}.")
+        validar_detalle_turno(detalle)
     for codigo, descripcion in turnos.items():
         if not codigo.strip() or codigo == "LIBRE" or len(codigo) > 12:
             raise ValueError("Usa códigos de turno de 1 a 12 caracteres, distintos de LIBRE.")

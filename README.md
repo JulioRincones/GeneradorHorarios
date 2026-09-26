@@ -92,6 +92,20 @@ cada domingo: se exige una de mañana y una de tarde, y la tercera también reci
 turno. Si no alcanza la dotación, el programa informa el conflicto sin modificar
 descansos ni generar el Excel.
 
+## Agregar y editar turnos
+
+Pulsa **Administrar turnos** en la barra superior. Elige **Nuevo turno** o el
+código de uno existente. Define el nombre, entrada y salida para cada día de
+lunes a domingo y cómo descontar la hora semanal: salir antes o entrar después.
+Usa formato `HH:MM`. Si la salida es anterior a la entrada, corresponde al día
+siguiente. Pulsa **Aplicar turno** y después **Guardar cambios**.
+
+Los nuevos turnos aparecen en los selectores semanales y en **Cobertura mínima**,
+con mínimo cero inicialmente. Las ediciones se aplican a todas las asignaciones
+del código, incluidos otros meses, sin cambiar la selección de cada trabajador.
+El código existente no se renombra. Los horarios editados por día reemplazan las
+variaciones predeterminadas de mañana y tarde. El límite de 45 horas sigue vigente.
+
 ## Encargados de turno
 
 En **Agregar persona** o **Editar selección**, marca **Encargado de turno**.
@@ -170,12 +184,25 @@ Si una selección impide cubrir los mínimos, se informa el área y la fecha.
 
 ## Máximo semanal de 45 horas
 
+Los horarios base dependen del día:
+
+| Turno | Lunes a miércoles | Jueves y viernes | Sábado | Domingo |
+| --- | --- | --- | --- | --- |
+| Mañana | 09:00–17:00 | 09:00–17:00 | 10:30–18:30 | 10:00–18:00 |
+| Tarde | 16:00–00:00 | 18:00–02:00 del día siguiente | 18:00–02:00 del día siguiente | 14:00–22:00 |
+| Intermedio | 13:00–19:00 | 13:00–19:00 | 13:00–19:00 | 13:00–19:00 |
+
+El turno nocturno pertenece al día en que empieza y cuenta como 8 horas.
+Las variantes de sábado, domingo y tarde de jueves a sábado se aplican
+automáticamente al código elegido, antes de descontar horas.
+
 La semana se calcula de lunes a domingo, incluyendo los días del mes vecino
 cuando corresponda. En semanas con domingo trabajado se descuenta una hora
 en los tres primeros días trabajados, saltando los descansos:
 
-- Mañana: salida a las 16:00 en vez de las 17:00.
-- Tarde: entrada a las 17:00 en vez de las 16:00.
+- Mañana: salida una hora antes del horario correspondiente al día.
+- Tarde: entrada una hora después del horario correspondiente al día
+  (por ejemplo, jueves reducido: 19:00–02:00).
 - Intermedio: salida a las 18:00 en vez de las 19:00.
 
 Los otros días conservan sus horas habituales. Seis turnos de 8 horas quedan

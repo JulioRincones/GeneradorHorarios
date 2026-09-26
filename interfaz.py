@@ -4,13 +4,15 @@ import calendar
 import copy
 import json
 import os
+import re
 import tkinter as tk
 from datetime import date, timedelta
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from horarios import (AREAS, BASE, DIAS_COMPLETOS, MESES, exportar, generar_mes,
-                      selecciones_del_area, validar, descansos_encargados, numero_dia, descripcion_turno)
+                      selecciones_del_area, validar, descansos_encargados, numero_dia, descripcion_turno,
+                      horario_del_dia, validar_detalle_turno)
 
 
 def lunes_del_mes(mes):
@@ -18,6 +20,24 @@ def lunes_del_mes(mes):
     lunes = primero - timedelta(days=primero.weekday())
     cantidad = len(calendar.Calendar(0).monthdayscalendar(mes.year, mes.month))
     return [lunes + timedelta(weeks=i) for i in range(cantidad)]
+
+
+def guardar_turno(config, codigo, nombre, dias, reduccion, existente=False):
+    codigo = codigo.strip()
+    if not codigo or len(codigo) > 12 or codigo == "LIBRE":
+        raise ValueError("Usa un código de 1 a 12 caracteres, distinto de LIBRE.")
+    if not existente and any(c.casefold() == codigo.casefold() for c in config["turnos"]):
+        raise ValueError("Ese código ya existe. Selecciona el turno para editarlo.")
+    detalle = {"nombre": nombre.strip(), "dias": dias, "reduccion": reduccion}
+    validar_detalle_turno(detalle)
+    nuevo = copy.deepcopy(config)
+    nuevo.setdefault("turnos_detalle", {})[codigo] = detalle
+    nuevo["turnos"][codigo] = f"{nombre.strip()} · {dias[0][0]} a {dias[0][1]}"
+    for area in nuevo["areas"].values():
+        area["cobertura"].setdefault(codigo, 0)
+        if "cobertura_domingo" in area:
+            area["cobertura_domingo"].setdefault(codigo, 0)
+    return nuevo
 
 
 def guardar_persona(config, area_nombre, anterior, nombre, libre, grupo, mes, turnos,
@@ -104,6 +124,7 @@ class Aplicacion(ttk.Frame):
         self.anio = tk.StringVar(value=str(self.mes.year))
         ttk.Spinbox(barra, from_=2000, to=2100, textvariable=self.anio, width=6).pack(side="left", padx=8)
         ttk.Button(barra, text="Mostrar mes", command=self.cambiar_mes).pack(side="left")
+        ttk.Button(barra, text="Administrar turnos", command=self.editar_turnos).pack(side="left", padx=8)
         self.notebook = ttk.Notebook(self)
         self.notebook.grid(row=3, sticky="nsew")
         self.tablas = {}
@@ -206,7 +227,7 @@ class Aplicacion(ttk.Frame):
         origen = date.fromisoformat(self.config["inicio_rotacion"])
         domingo = origen + timedelta(days=6-origen.weekday())
         ttk.Label(marco, text=f"Grupo 1: libre el {domingo:%d/%m/%Y} y cada 14 días.\nGrupo 2: libre el {domingo+timedelta(days=7):%d/%m/%Y} y cada 14 días.").grid(row=3, columnspan=2, sticky="w", pady=10)
-        opciones = {"Automático": None, **{f"{k} · {v}": k for k, v in self.config["turnos"].items()}}
+        opciones = {"Automático": None, **{f"{k} · {v.split(' · ')[0]} · según día": k for k, v in self.config["turnos"].items()}}
         seleccion = selecciones_del_area(nombre, area, self.config["turnos"])
         variables = []
         for i, lunes in enumerate(lunes_del_mes(self.mes)):
@@ -293,7 +314,7 @@ class Aplicacion(ttk.Frame):
         boton_calendario.grid(row=fila, column=1, sticky="e")
         ttk.Label(marco, textvariable=resumen).grid(row=fila+1, columnspan=2, sticky="w")
         fila += 2
-        ttk.Label(marco, text="Las semanas compartidas se actualizan también en el mes vecino.").grid(row=fila, columnspan=2, pady=12)
+        ttk.Label(marco, text="Consulta las horas por día en Administrar turnos.\nSe aplica la reducción semanal cuando corresponda.").grid(row=fila, columnspan=2, pady=12)
 
         def aplicar():
             try:
@@ -324,6 +345,64 @@ class Aplicacion(ttk.Frame):
             mapa.pop(persona, None)
         self.marcar()
         self.refrescar()
+
+    def editar_turnos(self):
+        ventana, marco = self.dialogo("Administrar turnos")
+        seleccion = tk.StringVar(value="Nuevo turno")
+        selector = ttk.Combobox(marco, textvariable=seleccion,
+                                values=["Nuevo turno"] + list(self.config["turnos"]), state="readonly")
+        selector.grid(row=0, column=1, columnspan=2, sticky="ew", pady=6)
+        ttk.Label(marco, text="Crear o editar").grid(row=0, column=0, sticky="w")
+        codigo, nombre = tk.StringVar(), tk.StringVar()
+        ttk.Label(marco, text="Código").grid(row=1, column=0, sticky="w")
+        entrada_codigo = ttk.Entry(marco, textvariable=codigo, width=14)
+        entrada_codigo.grid(row=1, column=1, sticky="w", pady=6)
+        ttk.Label(marco, text="Nombre").grid(row=2, column=0, sticky="w")
+        ttk.Entry(marco, textvariable=nombre, width=30).grid(row=2, column=1, columnspan=2, sticky="ew", pady=6)
+        ttk.Label(marco, text="Entrada (HH:MM)").grid(row=3, column=1, padx=8)
+        ttk.Label(marco, text="Salida (HH:MM)").grid(row=3, column=2, padx=8)
+        horas = []
+        for i, dia in enumerate(DIAS_COMPLETOS):
+            ttk.Label(marco, text=dia.capitalize()).grid(row=4+i, column=0, sticky="w", padx=(0, 16))
+            par = [tk.StringVar(value="09:00"), tk.StringVar(value="17:00")]
+            horas.append(par)
+            for c, v in enumerate(par, 1):
+                ttk.Entry(marco, textvariable=v, width=12).grid(row=4+i, column=c, padx=8, pady=4)
+        reduccion = tk.StringVar(value="Salir una hora antes")
+        opciones = {"Salir una hora antes": "salida", "Entrar una hora después": "entrada"}
+        ttk.Label(marco, text="Reducción semanal").grid(row=11, column=0, sticky="w", pady=10)
+        ttk.Combobox(marco, textvariable=reduccion, values=list(opciones), state="readonly", width=29).grid(row=11, column=1, columnspan=2)
+        ttk.Label(marco, text="Si la salida es anterior a la entrada, termina al día siguiente.\nEl código de un turno existente se conserva para mantener sus asignaciones.").grid(row=12, columnspan=3, pady=10)
+
+        def cargar(_=None):
+            clave = seleccion.get()
+            existente = clave != "Nuevo turno"
+            entrada_codigo.configure(state="normal")
+            codigo.set(clave if existente else "")
+            nombre.set(self.config["turnos"][clave].split(" · ")[0] if existente else "")
+            for i, par in enumerate(horas):
+                texto = horario_del_dia(self.config, clave, date(2026, 9, 28)+timedelta(days=i)) if existente else "09:00 a 17:00"
+                valores = re.findall(r"\b(?:[01]\d|2[0-3]):[0-5]\d\b", texto)
+                for v, valor in zip(par, valores if len(valores) == 2 else ["", ""]):
+                    v.set(valor)
+            regla = self.config.get("turnos_detalle", {}).get(clave, {}).get("reduccion", "entrada" if clave == "T" else "salida")
+            reduccion.set(next(k for k, v in opciones.items() if v == regla))
+            if existente:
+                entrada_codigo.configure(state="readonly")
+
+        def aplicar():
+            try:
+                self.config = guardar_turno(self.config, codigo.get(), nombre.get(),
+                                            [[v.get().strip() for v in par] for par in horas],
+                                            opciones[reduccion.get()], seleccion.get() != "Nuevo turno")
+                self.marcar()
+                self.refrescar()
+                ventana.destroy()
+            except ValueError as error:
+                messagebox.showerror("Revisa el turno", str(error), parent=ventana)
+        selector.bind("<<ComboboxSelected>>", cargar)
+        ttk.Button(marco, text="Cancelar", command=ventana.destroy).grid(row=13, column=0)
+        ttk.Button(marco, text="Aplicar turno", command=aplicar).grid(row=13, column=2)
 
     def cobertura(self, nombre):
         ventana, marco = self.dialogo(f"Cobertura mínima · {nombre}")
@@ -389,6 +468,7 @@ class Aplicacion(ttk.Frame):
         texto.configure(yscrollcommand=sy.set, xscrollcommand=sx.set)
         texto.pack(fill="both", expand=True)
         texto.insert("end", "\n".join(f"{t}: {d}" for t, d in self.config["turnos"].items())+"\nLIBRE: descanso\n\n")
+        texto.insert("end", "Las casillas muestran los horarios por día y la reducción semanal aplicada.\n\n")
         for area, empleados in horarios.items():
             for persona, turnos in empleados.items():
                 texto.insert("end", f"{area} · {persona}\n")

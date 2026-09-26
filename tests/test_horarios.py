@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
-from horarios import BASE, NS, exportar, generar, generar_mes, hoja, numero_dia, selecciones_del_area, ajustar_horas
+from horarios import BASE, NS, exportar, generar, generar_mes, hoja, numero_dia, selecciones_del_area, ajustar_horas, horario_del_dia
 
 
 class HorariosTest(unittest.TestCase):
@@ -32,7 +32,7 @@ class HorariosTest(unittest.TestCase):
                 self.assertEqual(sum(t.minutos for t in turnos), total*60)
                 self.assertEqual([t.reducido for t in turnos], [False, True, True, True, False, False, False])
                 self.assertIn(texto, turnos[1].descripcion)
-                self.assertEqual(turnos[4].descripcion, self.config["turnos"][codigo])
+                self.assertEqual(turnos[4].descripcion, horario_del_dia(self.config, codigo, fechas[4]))
                 self.assertEqual(turnos[0].horas_semana, total)
 
     def test_domingo_libre_sin_reducciones_y_maximo(self):
@@ -43,6 +43,24 @@ class HorariosTest(unittest.TestCase):
         self.config["turnos"]["M"] = "Mañana · 09:00 a 19:00"
         with self.assertRaisesRegex(ValueError, "máximo es 45"):
             ajustar_horas(self.config, fechas, ["LIBRE"] + ["M"]*6, "Ana")
+
+    def test_horarios_segun_dia_y_descuentos(self):
+        fechas = [self.inicio + timedelta(days=i) for i in range(7)]
+        manana = ajustar_horas(self.config, fechas, ["LIBRE"] + ["M"]*6, "Ana")
+        tarde = ajustar_horas(self.config, fechas, ["LIBRE"] + ["T"]*6, "Luis")
+        self.assertIn("10:30 a 18:30", manana[5].descripcion)
+        self.assertIn("10:00 a 18:00", manana[6].descripcion)
+        self.assertIn("19:00 a 02:00 del día siguiente", tarde[3].descripcion)
+        self.assertEqual(tarde[3].minutos, 420)
+        for i in (4, 5):
+            self.assertIn("18:00 a 02:00 del día siguiente", tarde[i].descripcion)
+            self.assertEqual(tarde[i].minutos, 480)
+        self.assertIn("14:00 a 22:00", tarde[6].descripcion)
+        self.assertEqual(sum(t.minutos for t in tarde), 45*60)
+        self.assertEqual(sum(t.minutos for t in manana), 45*60)
+        sin_domingo = ajustar_horas(self.config, fechas, ["LIBRE"] + ["T"]*5 + ["LIBRE"], "Luis")
+        self.assertIn("18:00 a 02:00", sin_domingo[3].descripcion)
+        self.assertEqual(sum(t.minutos for t in sin_domingo), 40*60)
 
     def test_horas_continuas_entre_meses(self):
         _, completo = generar(self.config, self.inicio, 1)
