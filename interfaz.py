@@ -12,7 +12,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from horarios import (AREAS, BASE, DIAS_COMPLETOS, MESES, exportar, generar_mes,
                       selecciones_del_area, validar, descansos_encargados, numero_dia, descripcion_turno,
-                      horario_del_dia, validar_detalle_turno)
+                      horario_del_dia, validar_detalle_turno, evaluar_cobertura)
 
 
 def lunes_del_mes(mes):
@@ -97,6 +97,7 @@ class Aplicacion(ttk.Frame):
         self.config = json.loads(self.ruta.read_text(encoding="utf-8-sig"))
         validar(self.config)
         self.modificado = False
+        self.actualizacion_alertas = None
         self.ultimo_excel = None
         self.mes = date.today().replace(day=1)
         root.title("Horarios · Planificador de turnos")
@@ -127,6 +128,22 @@ class Aplicacion(ttk.Frame):
         ttk.Button(barra, text="Administrar turnos", command=self.editar_turnos).pack(side="left", padx=8)
         self.notebook = ttk.Notebook(self)
         self.notebook.grid(row=3, sticky="nsew")
+        alarmas = ttk.LabelFrame(self, text="Alertas de cobertura", padding=10, width=270)
+        alarmas.grid(row=3, column=1, sticky="nsew", padx=(12, 0))
+        alarmas.grid_propagate(False)
+        alarmas.columnconfigure(0, weight=1)
+        alarmas.rowconfigure(2, weight=1)
+        self.resumen_alertas = tk.StringVar(value="Evaluando…")
+        ttk.Label(alarmas, textvariable=self.resumen_alertas, wraplength=230).grid(sticky="w", pady=(0, 8))
+        ttk.Label(alarmas, text="Horas efectivas, incluidas reducciones y cierres nocturnos.", wraplength=230).grid(row=1, sticky="w", pady=(0, 8))
+        self.texto_alertas = tk.Text(alarmas, width=28, wrap="word", font=("Segoe UI", 10),
+                                    relief="flat", padx=6, pady=6, state="disabled")
+        self.texto_alertas.grid(row=2, column=0, sticky="nsew")
+        scroll_alertas = ttk.Scrollbar(alarmas, command=self.texto_alertas.yview)
+        scroll_alertas.grid(row=2, column=1, sticky="ns")
+        self.texto_alertas.configure(yscrollcommand=scroll_alertas.set)
+        self.texto_alertas.tag_configure("critica", foreground="#b42318")
+        self.texto_alertas.tag_configure("aviso", foreground="#855700")
         self.tablas = {}
         for nombre in AREAS:
             panel = ttk.Frame(self.notebook, padding=12)
@@ -168,6 +185,35 @@ class Aplicacion(ttk.Frame):
     def marcar(self):
         self.modificado = True
         self.estado.set("Hay cambios sin guardar.")
+        self.programar_alertas()
+
+    def programar_alertas(self):
+        if self.actualizacion_alertas is not None:
+            self.root.after_cancel(self.actualizacion_alertas)
+        self.actualizacion_alertas = self.root.after(200, self.actualizar_alertas)
+
+    def actualizar_alertas(self):
+        self.actualizacion_alertas = None
+        self.texto_alertas.configure(state="normal")
+        self.texto_alertas.delete("1.0", "end")
+        try:
+            alertas = evaluar_cobertura(self.config, self.mes)
+            vacios = sum(a["presentes"] == 0 for a in alertas)
+            self.resumen_alertas.set(f"{len(alertas)} tramos con déficit · {vacios} sin personal")
+            if not alertas:
+                self.texto_alertas.insert("end", "Cobertura completa para los mínimos configurados.\n")
+            for a in alertas:
+                texto = (f"{a['area']} · {a['inicio']:%d/%m}\n"
+                         f"{a['inicio']:%H:%M} – {a['fin']:%H:%M}"
+                         + (" (+1 día)" if a['fin'].date() != a['inicio'].date() else "")
+                         + f"\n{a['presentes']} presentes / {a['minimo']} necesarios\n"
+                         + ("SIN PERSONAL\n" if a['presentes'] == 0 else "") + "\n")
+                self.texto_alertas.insert("end", texto, "critica" if a["presentes"] == 0 else "aviso")
+        except (ValueError, OverflowError) as error:
+            self.resumen_alertas.set("No se pudo evaluar la cobertura")
+            self.texto_alertas.insert("end", str(error), "critica")
+        finally:
+            self.texto_alertas.configure(state="disabled")
 
     def cambiar_mes(self):
         try:
@@ -193,6 +239,7 @@ class Aplicacion(ttk.Frame):
                 valores = [etiqueta, area["dias_libres"][persona].capitalize(), f"Grupo {area.get('domingo_grupo', {}).get(persona, i % 2)+1}"]
                 valores += [seleccion.get(d.isoformat(), {}).get(persona, "Automático") for d in semanas]
                 tabla.insert("", "end", iid=str(i), values=valores)
+        self.programar_alertas()
 
     def dialogo(self, titulo):
         ventana = tk.Toplevel(self.root)
@@ -482,6 +529,11 @@ class Aplicacion(ttk.Frame):
     def generar(self):
         resultado = self.calcular()
         if resultado is None:
+            return
+        alertas = evaluar_cobertura(self.config, self.mes)
+        if any(a["presentes"] == 0 for a in alertas):
+            self.actualizar_alertas()
+            messagebox.showerror("Hay horarios sin personal", "Revisa las alertas rojas del panel. No se puede exportar mientras haya tramos sin personal dentro de los horarios requeridos.", parent=self.root)
             return
         ruta = filedialog.asksaveasfilename(parent=self.root, title="Guardar Excel de horarios", defaultextension=".xlsx",
                                             filetypes=[("Libro de Excel", "*.xlsx")], initialfile=f"horarios_{self.mes:%Y-%m}.xlsx")

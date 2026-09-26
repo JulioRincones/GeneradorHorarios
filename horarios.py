@@ -5,7 +5,7 @@ import calendar
 import json
 import re
 import unicodedata
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from xml.etree.ElementTree import Element, SubElement, tostring
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -53,7 +53,7 @@ def horario_del_dia(config, codigo, fecha):
     return config["turnos"][codigo]
 
 
-def ajustar_horas(config, fechas, turnos, persona):
+def ajustar_horas(config, fechas, turnos, persona, *, verificar=True):
     calculados = []
     for inicio in range(0, len(fechas), 7):
         semana = turnos[inicio:inicio+7]
@@ -83,7 +83,7 @@ def ajustar_horas(config, fechas, turnos, persona):
                 pendientes -= 1
             dias.append((codigo, descripcion, minutos, reducido))
         total = sum(d[2] for d in dias)
-        if total > 45*60:
+        if verificar and total > 45*60:
             raise ValueError(f"{persona}, semana del {fechas[inicio]}: {total/60:g} horas; el máximo es 45. Revisa los turnos.")
         calculados.extend(TurnoCalculado(c, d, m, total/60, r) for c, d, m, r in dias)
     return calculados
@@ -205,7 +205,7 @@ def descansos_encargados(area):
     return resultado
 
 
-def validar(config):
+def validar(config, *, verificar_cobertura=True):
     if not isinstance(config, dict):
         raise ValueError("La configuración debe ser un objeto JSON.")
     if not isinstance(config.get("empresa"), str) or not config["empresa"].strip():
@@ -278,11 +278,11 @@ def validar(config):
             entero(cantidad, f"Cobertura dominical de {turno} en {nombre}")
         for grupo in (0, 1):
             disponibles = sum(grupos.get(e, i % 2) != grupo for i, e in enumerate(empleados))
-            if disponibles < sum(domingo.values()):
+            if verificar_cobertura and disponibles < sum(domingo.values()):
                 raise ValueError(f"{nombre}: el domingo del grupo {grupo} hay {disponibles} personas para {sum(domingo.values())} puestos mínimos.")
         for dia in range(6):
             disponibles = len(empleados) - dias_libres.count(dia)
-            if disponibles < puestos:
+            if verificar_cobertura and disponibles < puestos:
                 raise ValueError(
                     f"{nombre}: el {DIAS_COMPLETOS[dia]} hay {disponibles} personas disponibles "
                     f"para {puestos} puestos. Cambia los días libres o la cobertura."
@@ -293,8 +293,8 @@ def validar(config):
         raise ValueError("inicio_rotacion debe ser una fecha AAAA-MM-DD.") from None
 
 
-def generar(config, inicio, semanas, *, fin=None):
-    validar(config)
+def generar(config, inicio, semanas, *, fin=None, diagnostico=False):
+    validar(config, verificar_cobertura=not diagnostico)
     entero(semanas, "Semanas", 1)
     if semanas > 52:
         raise ValueError("Genera como máximo 52 semanas por archivo.")
@@ -339,7 +339,7 @@ def generar(config, inicio, semanas, *, fin=None):
             offset = ((dia - origen).days + area.get("desfase", 0)) % max(1, len(disponibles))
             disponibles = disponibles[offset:] + disponibles[:offset]
             vacantes = [t for t in config["turnos"] for _ in range(pendientes.get(t, 0))]
-            if len(vacantes) > len(disponibles):
+            if not diagnostico and len(vacantes) > len(disponibles):
                 raise ValueError(
                     f"{nombre}, {dia:%d/%m/%Y}: no se puede cubrir el mínimo de turnos "
                     "respetando los descansos y selecciones semanales. "
@@ -352,7 +352,7 @@ def generar(config, inicio, semanas, *, fin=None):
             for e in empleados:
                 resultado[nombre][e].append(asignados[e])
         for e in empleados:
-            resultado[nombre][e] = ajustar_horas(config, fechas, resultado[nombre][e], f"{nombre}, {e}")
+            resultado[nombre][e] = ajustar_horas(config, fechas, resultado[nombre][e], f"{nombre}, {e}", verificar=not diagnostico)
     offset = (solicitadas[0]-primero).days
     return solicitadas, {a: {e: t[offset:offset+len(solicitadas)] for e, t in personas.items()}
                          for a, personas in resultado.items()}
@@ -367,6 +367,76 @@ def generar_mes(config, mes):
         area: {persona: turnos[:cantidad] for persona, turnos in empleados.items()}
         for area, empleados in horarios.items()
     }
+
+
+def intervalo_horario(dia, descripcion):
+    horas = re.findall(r"\b(?:[01]\d|2[0-3]):[0-5]\d\b", descripcion)
+    if len(horas) != 2:
+        raise ValueError(f"Horario inválido para evaluar cobertura: {descripcion}")
+    inicio, fin = [datetime.combine(dia, time.fromisoformat(h)) for h in horas]
+    if fin <= inicio:
+        fin += timedelta(days=1)
+    return inicio, fin
+
+
+def evaluar_cobertura(config, mes):
+    """Compara presencia real con mínimos por franja, con precisión de minutos.
+
+    El horario de atención se deduce de los turnos con mínimo positivo.
+    En los solapamientos sus mínimos se suman; cualquier trabajador del área
+    presente puede cubrirlos, independientemente del código asignado.
+    """
+    primero = mes.replace(day=1)
+    ultimo = primero.replace(day=calendar.monthrange(primero.year, primero.month)[1])
+    # Incluye la madrugada del día 1 y el cierre nocturno del último día.
+    inicio = primero-timedelta(days=1)
+    fechas, resultado = generar(config, inicio, 5, fin=ultimo, diagnostico=True)
+    alertas = []
+    for nombre, empleados in resultado.items():
+        area = config["areas"][nombre]
+        eventos = {}
+
+        def evento(instante, minimo=0, presentes=0):
+            valores = eventos.setdefault(instante, [0, 0])
+            valores[0] += minimo
+            valores[1] += presentes
+
+        for i, dia in enumerate(fechas):
+            cobertura = area.get("cobertura_domingo", area["cobertura"]) if dia.weekday() == 6 else area["cobertura"]
+            for codigo, cantidad in cobertura.items():
+                if cantidad:
+                    entrada, salida = intervalo_horario(dia, horario_del_dia(config, codigo, dia))
+                    evento(entrada, minimo=cantidad)
+                    evento(salida, minimo=-cantidad)
+            for turnos in empleados.values():
+                if turnos[i] != "LIBRE":
+                    entrada, salida = intervalo_horario(dia, descripcion_turno(config, turnos[i]))
+                    evento(entrada, presentes=1)
+                    evento(salida, presentes=-1)
+        limite = datetime.combine(primero, time())
+        evento(limite)
+        # Separar por hora permite detectar también cambios a :30 o cualquier minuto.
+        hora = limite
+        final = max(eventos)
+        while hora <= final:
+            evento(hora)
+            hora += timedelta(hours=1)
+        puntos = sorted(eventos)
+        minimo = presentes = 0
+        for indice, punto in enumerate(puntos[:-1]):
+            minimo += eventos[punto][0]
+            presentes += eventos[punto][1]
+            fin = puntos[indice+1]
+            if punto < limite or minimo <= presentes:
+                continue
+            if (alertas and alertas[-1]["area"] == nombre and alertas[-1]["fin"] == punto
+                    and alertas[-1]["minimo"] == minimo and alertas[-1]["presentes"] == presentes
+                    and alertas[-1]["inicio"].date() == punto.date()):
+                alertas[-1]["fin"] = fin
+            else:
+                alertas.append({"area": nombre, "inicio": punto, "fin": fin,
+                                "minimo": minimo, "presentes": presentes})
+    return sorted(alertas, key=lambda a: (a["presentes"] != 0, a["inicio"], a["area"]))
 
 
 def leer_mes(valor):

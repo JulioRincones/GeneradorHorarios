@@ -92,6 +92,26 @@ cada domingo: se exige una de mañana y una de tarde, y la tercera también reci
 turno. Si no alcanza la dotación, el programa informa el conflicto sin modificar
 descansos ni generar el Excel.
 
+## Alertas de cobertura por hora
+
+El panel derecho se actualiza al aplicar cambios de personas, turnos, descansos,
+grupos dominicales o cobertura, y al mostrar otro mes. Evalúa la presencia real
+después de reducir horas, incluidos los turnos nocturnos. Comprueba cada hora
+y también cambios a minutos intermedios (por ejemplo 10:30).
+
+El horario requerido se deduce de los turnos con cobertura mínima positiva.
+Cuando se solapan varios turnos, se suman sus mínimos. Se cuenta toda persona
+presente del área, independientemente del código de su turno. No se exige
+personal fuera de esos horarios; configura la cobertura para representar todas
+las horas en que el área debe estar atendida.
+
+Cada alerta indica área, fecha, tramo, personas presentes y mínimo requerido.
+Los tramos sin personal aparecen en rojo y bloquean la exportación desde la
+interfaz; los déficits con al menos una persona se muestran como advertencias.
+La vista previa sigue disponible para revisar y corregir los horarios.
+Se incluye la madrugada del primer día y el cierre nocturno del último día.
+Las alertas se calculan sin guardar los cambios en disco.
+
 ## Agregar y editar turnos
 
 Pulsa **Administrar turnos** en la barra superior. Elige **Nuevo turno** o el
@@ -213,8 +233,8 @@ y el total de cada semana completa. Si aun así se superan 45 horas, se bloquea
 la generación y se informa la persona y semana afectadas.
 
 Las horas se calculan entre entrada y salida, sin descontar pausas. La cobertura
-sigue siendo por cantidad de personas asignadas a cada turno; no se comprueba
-la cobertura minuto a minuto después de reducir las jornadas.
+sigue definiéndose por turno; el panel contrasta esos mínimos con las personas
+presentes en cada franja, después de reducir las jornadas.
 
 ## Ciclo base
 
